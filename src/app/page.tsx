@@ -8,8 +8,10 @@ import { CreateTaskDialog } from '@/components/kanban/create-task-dialog';
 import { TaskDetailPanel } from '@/components/task/task-detail-panel';
 import { SettingsDialog } from '@/components/settings/settings-dialog';
 import { SetupDialog } from '@/components/settings/setup-dialog';
+import { SidebarPanel, FilePreviewPanel } from '@/components/sidebar';
 import { useProjectStore } from '@/stores/project-store';
 import { useTaskStore } from '@/stores/task-store';
+import { useSidebarStore } from '@/stores/sidebar-store';
 
 function KanbanApp() {
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
@@ -18,6 +20,7 @@ function KanbanApp() {
 
   const { currentProject, projects, fetchProjects, loading: projectLoading } = useProjectStore();
   const { selectedTask, fetchTasks } = useTaskStore();
+  const { toggleSidebar, previewFile } = useSidebarStore();
 
   // Fetch projects on mount
   useEffect(() => {
@@ -58,6 +61,11 @@ function KanbanApp() {
         const searchInput = document.querySelector('input[type="search"]') as HTMLInputElement;
         searchInput?.focus();
       }
+      // Cmd/Ctrl + B: Toggle sidebar
+      if ((e.metaKey || e.ctrlKey) && e.key === 'b') {
+        e.preventDefault();
+        toggleSidebar();
+      }
       // Escape: Close panels
       if (e.key === 'Escape') {
         if (selectedTask) {
@@ -68,7 +76,7 @@ function KanbanApp() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedTask]);
+  }, [selectedTask, toggleSidebar]);
 
   if (projectLoading) {
     return (
@@ -86,24 +94,32 @@ function KanbanApp() {
       />
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Main content - Kanban board */}
-        <main className={`flex-1 overflow-auto transition-all ${selectedTask ? 'mr-[600px]' : ''}`}>
-          {currentProject ? (
-            <Board />
-          ) : (
-            <div className="flex h-full items-center justify-center">
-              <div className="text-center">
-                <p className="text-muted-foreground mb-4">No project selected</p>
-                <button
-                  onClick={() => setSetupOpen(true)}
-                  className="text-primary underline hover:no-underline"
-                >
-                  Set up a project
-                </button>
+        {/* Sidebar */}
+        <SidebarPanel />
+
+        {/* File preview panel - in flow, pushes content */}
+        <FilePreviewPanel />
+
+        {/* Main content - Kanban board (hidden when file preview is open) */}
+        {!previewFile && (
+          <main className="flex-1 overflow-auto min-w-0">
+            {currentProject ? (
+              <Board />
+            ) : (
+              <div className="flex h-full items-center justify-center">
+                <div className="text-center">
+                  <p className="text-muted-foreground mb-4">No project selected</p>
+                  <button
+                    onClick={() => setSetupOpen(true)}
+                    className="text-primary underline hover:no-underline"
+                  >
+                    Set up a project
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
-        </main>
+            )}
+          </main>
+        )}
 
         {/* Task detail panel - right sidebar */}
         {selectedTask && <TaskDetailPanel />}

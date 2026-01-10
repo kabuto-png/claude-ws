@@ -1,6 +1,7 @@
 'use client';
 
-import { Settings, Plus, Search, FolderOpen } from 'lucide-react';
+import { Settings, Plus, Search, FolderOpen, PanelLeft } from 'lucide-react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -11,6 +12,7 @@ import {
 } from '@/components/ui/tooltip';
 import { useProjectStore } from '@/stores/project-store';
 import { useTaskStore } from '@/stores/task-store';
+import { useSidebarStore } from '@/stores/sidebar-store';
 
 interface HeaderProps {
   onCreateTask: () => void;
@@ -20,14 +22,36 @@ interface HeaderProps {
 export function Header({ onCreateTask, onOpenSettings }: HeaderProps) {
   const { currentProject } = useProjectStore();
   const { tasks } = useTaskStore();
+  const { isOpen: sidebarOpen, toggleSidebar } = useSidebarStore();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="flex h-14 items-center gap-4 px-4">
         {/* Logo */}
-        <div className="flex items-center gap-2 font-semibold">
-          <span className="text-lg tracking-tight">CLAUDE-KANBAN</span>
+        <div className="flex items-center gap-2">
+          <Image src="/logo.png" alt="Claude Kanban" width={32} height={32} />
+          <span className="font-mono text-base font-bold tracking-tight">
+            CLAUDE-KANBAN
+          </span>
         </div>
+
+        {/* Sidebar toggle */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={sidebarOpen ? 'secondary' : 'ghost'}
+                size="icon"
+                onClick={toggleSidebar}
+              >
+                <PanelLeft className="h-4 w-4" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>Toggle sidebar (⌘B)</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
 
         {/* Search */}
         <div className="flex-1 max-w-md">

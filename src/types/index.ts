@@ -119,3 +119,35 @@ export const KANBAN_COLUMNS: { id: TaskStatus; title: string }[] = [
   { id: 'done', title: 'Done' },
   { id: 'cancelled', title: 'Cancelled' },
 ];
+
+// File browser types
+export interface FileEntry {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  size?: number;
+  children?: FileEntry[];
+}
+
+// Git status types
+export type GitFileStatusCode = 'M' | 'A' | 'D' | 'R' | 'U' | '?';
+
+export interface GitFileStatus {
+  path: string;
+  status: GitFileStatusCode;
+}
+
+export interface GitStatus {
+  branch: string;
+  staged: GitFileStatus[];
+  unstaged: GitFileStatus[];
+  untracked: GitFileStatus[];
+  ahead: number;
+  behind: number;
+}
+
+export interface GitDiff {
+  diff: string;
+  additions: number;
+  deletions: number;
+}

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { X, Wifi, WifiOff, RotateCcw } from 'lucide-react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { X, Wifi, WifiOff, RotateCcw, GripVertical } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -12,6 +12,11 @@ import { useTaskStore } from '@/stores/task-store';
 import { useAttemptStream } from '@/hooks/use-attempt-stream';
 import { cn } from '@/lib/utils';
 import type { TaskStatus } from '@/types';
+
+const MIN_WIDTH = 400;
+const MAX_WIDTH = 800;
+const DEFAULT_WIDTH = 560;
+const STORAGE_KEY = 'task-detail-width';
 
 interface TaskDetailPanelProps {
   className?: string;
@@ -28,6 +33,53 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; variant: 'default' | 's
 export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
   const { selectedTask, setSelectedTask, updateTaskStatus } = useTaskStore();
   const [conversationKey, setConversationKey] = useState(0);
+  const [width, setWidth] = useState(DEFAULT_WIDTH);
+  const [isResizing, setIsResizing] = useState(false);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Load saved width
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (!isNaN(parsed) && parsed >= MIN_WIDTH && parsed <= MAX_WIDTH) {
+        setWidth(parsed);
+      }
+    }
+  }, []);
+
+  // Save width on change
+  useEffect(() => {
+    if (!isResizing) {
+      localStorage.setItem(STORAGE_KEY, String(width));
+    }
+  }, [width, isResizing]);
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isResizing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newWidth = window.innerWidth - e.clientX;
+      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth)));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizing(false);
+    };
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing]);
 
   // Handle task completion - move to review and show notification
   const handleTaskComplete = useCallback(
@@ -65,11 +117,25 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
 
   return (
     <div
+      ref={panelRef}
       className={cn(
-        'fixed right-0 top-14 h-[calc(100vh-3.5rem)] w-[600px] bg-background border-l shadow-xl flex flex-col z-40',
+        'h-full bg-background border-l flex flex-col shrink-0',
+        isResizing && 'select-none',
         className
       )}
+      style={{ width: `${width}px` }}
     >
+      {/* Resize handle - left edge */}
+      <div
+        className={cn(
+          'absolute left-0 top-0 h-full w-1.5 cursor-col-resize z-10',
+          'hover:bg-primary/20 active:bg-primary/30 transition-colors',
+          'flex items-center justify-center group'
+        )}
+        onMouseDown={handleResizeMouseDown}
+      >
+        <GripVertical className="size-4 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
       {/* Header */}
       <div className="flex items-start justify-between p-4 border-b">
         <div className="flex-1 min-w-0">

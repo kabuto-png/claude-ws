@@ -40,7 +40,7 @@ export function CodeBlock({ code, language, className }: CodeBlockProps) {
           )}
         </Button>
       </div>
-      <pre className="p-3 overflow-x-auto bg-muted/30 text-[13px] leading-relaxed whitespace-pre font-mono">
+      <pre className="p-3 bg-muted/30 text-[13px] leading-relaxed whitespace-pre-wrap break-words font-mono">
         <code className={language ? `language-${language}` : ''}>{code}</code>
       </pre>
     </div>

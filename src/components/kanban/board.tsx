@@ -158,7 +158,7 @@ export function Board({ attempts = [] }: BoardProps) {
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="flex gap-4 h-full overflow-x-auto pb-4">
+      <div className="flex gap-4 h-full overflow-x-auto pb-4 pl-4">
         {KANBAN_COLUMNS.map((column) => (
           <Column
             key={column.id}
