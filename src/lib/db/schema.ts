@@ -86,6 +86,25 @@ export const attemptLogs = sqliteTable(
   ]
 );
 
+// Attempt files table - file attachments per attempt
+export const attemptFiles = sqliteTable(
+  'attempt_files',
+  {
+    id: text('id').primaryKey(),
+    attemptId: text('attempt_id')
+      .notNull()
+      .references(() => attempts.id, { onDelete: 'cascade' }),
+    filename: text('filename').notNull(), // Stored name (uuid-based)
+    originalName: text('original_name').notNull(),
+    mimeType: text('mime_type').notNull(),
+    size: integer('size').notNull(), // Bytes
+    createdAt: integer('created_at', { mode: 'number' })
+      .notNull()
+      .$defaultFn(() => Date.now()),
+  },
+  (table) => [index('idx_attempt_files_attempt').on(table.attemptId)]
+);
+
 // Checkpoints table - conversation state snapshots for rewind
 export const checkpoints = sqliteTable(
   'checkpoints',
@@ -120,3 +139,5 @@ export type AttemptLog = typeof attemptLogs.$inferSelect;
 export type NewAttemptLog = typeof attemptLogs.$inferInsert;
 export type Checkpoint = typeof checkpoints.$inferSelect;
 export type NewCheckpoint = typeof checkpoints.$inferInsert;
+export type AttemptFile = typeof attemptFiles.$inferSelect;
+export type NewAttemptFile = typeof attemptFiles.$inferInsert;

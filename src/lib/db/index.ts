@@ -81,6 +81,18 @@ export function initDb() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_checkpoints_task ON checkpoints(task_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS attempt_files (
+      id TEXT PRIMARY KEY,
+      attempt_id TEXT NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,
+      filename TEXT NOT NULL,
+      original_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size INTEGER NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_attempt_files_attempt ON attempt_files(attempt_id);
   `);
 
   // Migration: Add session_id column if it doesn't exist (for existing databases)

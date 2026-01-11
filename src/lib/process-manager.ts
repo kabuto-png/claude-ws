@@ -35,8 +35,9 @@ class ProcessManager extends EventEmitter {
   /**
    * Spawn a new Claude Code CLI process using 'script' command for TTY emulation
    * @param sessionId - Optional session ID to resume a previous conversation
+   * @param filePaths - Optional array of file paths to include via @file syntax
    */
-  spawn(attemptId: string, projectPath: string, prompt: string, sessionId?: string): void {
+  spawn(attemptId: string, projectPath: string, prompt: string, sessionId?: string, filePaths?: string[]): void {
     if (this.processes.has(attemptId)) {
       console.warn(`Process ${attemptId} already exists`);
       return;
@@ -57,27 +58,40 @@ class ProcessManager extends EventEmitter {
     // Combine user prompt with format instructions
     const fullPrompt = `${prompt}\n\n<output-format-guidelines>\n${formatInstructions}\n</output-format-guidelines>`;
 
-    // Escape prompt for shell
-    const escapedPrompt = fullPrompt.replace(/'/g, "'\\''");
+    // Build args array for spawn
+    const args: string[] = [];
 
-    // Build the claude command - NO --system-prompt to preserve Claude Code skills
-    let claudeCmd = `'${claudePath}' -p '${escapedPrompt}' --output-format stream-json --verbose --dangerously-skip-permissions`;
-    if (sessionId) {
-      claudeCmd += ` --resume '${sessionId}'`;
+    // Add file references first (before -p flag)
+    if (filePaths && filePaths.length > 0) {
+      for (const fp of filePaths) {
+        args.push(`@${fp}`);
+      }
     }
 
-    console.log(`[ProcessManager] Claude command: ${claudeCmd.substring(0, 150)}...`);
+    // Add prompt
+    args.push('-p', fullPrompt);
 
-    // Use 'script' command to create a pseudo-terminal
-    // Keep stdin open for interactive responses (AskUserQuestion)
-    const fullCmd = `script -q /dev/null ${claudeCmd}`;
+    // Add required flags
+    args.push('--output-format', 'stream-json');
+    args.push('--verbose');
+    args.push('--dangerously-skip-permissions');
 
-    const child = spawn('/bin/zsh', ['-c', fullCmd], {
+    // Add session resume if provided
+    if (sessionId) {
+      args.push('--resume', sessionId);
+    }
+
+    console.log(`[ProcessManager] Spawning:`, claudePath, 'with', args.length, 'args');
+
+    // Spawn Claude - ignore stdin to prevent blocking (AskUserQuestion handled separately)
+    const child = spawn(claudePath, args, {
       cwd: projectPath,
-      stdio: ['pipe', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
         FORCE_COLOR: '0',
+        NO_COLOR: '1',
+        TERM: 'dumb',
         PATH: `${process.env.PATH}:/opt/homebrew/bin:/usr/local/bin`,
       },
     });
@@ -92,6 +106,10 @@ class ProcessManager extends EventEmitter {
     };
 
     this.processes.set(attemptId, instance);
+
+    // End stdin to signal we're not sending more input (unless AskUserQuestion needs it later)
+    // Note: For AskUserQuestion, we'll need to keep stdin open - handled by sendInput method
+    // For now, don't close stdin so interactive responses can work
 
     // Handle stdout
     child.stdout?.on('data', (chunk: Buffer) => {
@@ -158,14 +176,17 @@ class ProcessManager extends EventEmitter {
 
   /**
    * Send input to process stdin (for interactive responses like AskUserQuestion)
+   * NOTE: Currently stdin is ignored to prevent blocking. Interactive responses
+   * will need to be handled differently (e.g., via API or separate process).
    */
   sendInput(attemptId: string, input: string): boolean {
     const instance = this.processes.get(attemptId);
-    if (!instance || !instance.child.stdin) return false;
+    if (!instance) return false;
 
-    console.log(`[ProcessManager] Sending input to ${attemptId}: ${input.substring(0, 100)}...`);
-    instance.child.stdin.write(input + '\n');
-    return true;
+    // stdin is currently ignored - log warning
+    console.warn(`[ProcessManager] sendInput called but stdin is ignored for ${attemptId}`);
+    console.log(`[ProcessManager] Input was: ${input.substring(0, 100)}...`);
+    return false;
   }
 
   /**

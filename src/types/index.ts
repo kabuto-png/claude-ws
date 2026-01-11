@@ -155,6 +155,23 @@ export interface GitDiff {
   deletions: number;
 }
 
+// Re-export AttemptFile from db schema
+export type { AttemptFile, NewAttemptFile } from '@/lib/db/schema';
+
+// Pending file attachment type (before attempt submission)
+export type PendingFileStatus = 'pending' | 'uploading' | 'uploaded' | 'error';
+
+export interface PendingFile {
+  tempId: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  previewUrl?: string;
+  status: PendingFileStatus;
+  error?: string;
+  file?: File;
+}
+
 // Checkpoint type for conversation rewind
 export interface Checkpoint {
   id: string;
