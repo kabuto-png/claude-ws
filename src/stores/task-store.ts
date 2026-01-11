@@ -17,7 +17,7 @@ interface TaskStore {
   setCreatingTask: (isCreating: boolean) => void;
 
   // API calls
-  fetchTasks: (projectId: string) => Promise<void>;
+  fetchTasks: (projectIds: string[]) => Promise<void>;
   createTask: (projectId: string, title: string, description: string | null) => Promise<void>;
   reorderTasks: (taskId: string, newStatus: TaskStatus, newPosition: number) => Promise<void>;
   updateTaskStatus: (taskId: string, status: TaskStatus) => Promise<void>;
@@ -54,9 +54,13 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
   setCreatingTask: (isCreating) => set({ isCreatingTask: isCreating }),
 
-  fetchTasks: async (projectId: string) => {
+  fetchTasks: async (projectIds: string[]) => {
     try {
-      const res = await fetch(`/api/tasks?projectId=${projectId}`);
+      // Build query string based on projectIds
+      const query = projectIds.length > 0
+        ? `?projectIds=${projectIds.join(',')}`
+        : ''; // Empty = fetch all tasks
+      const res = await fetch(`/api/tasks${query}`);
       if (!res.ok) throw new Error('Failed to fetch tasks');
       const tasks = await res.json();
       set({ tasks });

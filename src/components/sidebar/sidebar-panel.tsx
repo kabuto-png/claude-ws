@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { FolderTree, GitBranch, X, GripVertical } from 'lucide-react';
+import { FolderTree, GitBranch, X, GripVertical, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileTree } from './file-browser';
 import { GitPanel } from './git-changes';
 import { useSidebarStore } from '@/stores/sidebar-store';
+import { useProjectStore } from '@/stores/project-store';
 import { cn } from '@/lib/utils';
 
 const MIN_WIDTH = 200;
@@ -19,9 +20,23 @@ interface SidebarPanelProps {
 
 export function SidebarPanel({ className }: SidebarPanelProps) {
   const { isOpen, activeTab, setActiveTab, setIsOpen, sidebarWidth, setSidebarWidth } = useSidebarStore();
+  const {
+    projects,
+    selectedProjectIds,
+    activeProjectId,
+    setActiveProjectId,
+    getActiveProject,
+    isAllProjectsMode,
+    getSelectedProjects
+  } = useProjectStore();
   const [width, setWidth] = useState(sidebarWidth);
   const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // Check if we're in multi-project mode (need to select a project for sidebar)
+  const activeProject = getActiveProject();
+  const isMultiSelect = isAllProjectsMode() || selectedProjectIds.length > 1;
+  const availableProjects = getSelectedProjects();
 
   // Sync with store on mount
   useEffect(() => {
@@ -104,13 +119,35 @@ export function SidebarPanel({ className }: SidebarPanelProps) {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="files" className="flex-1 min-h-0 mt-0">
-          <FileTree />
-        </TabsContent>
+        {/* Show placeholder when multi-select without active project */}
+        {isMultiSelect && !activeProject ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-4 text-center">
+            <FolderOpen className="size-8 text-muted-foreground/50 mb-3" />
+            <p className="text-sm text-muted-foreground mb-3">
+              Select a project to browse files
+            </p>
+            <select
+              className="w-full max-w-[200px] text-sm border rounded-md p-2 bg-background"
+              value={activeProjectId || ''}
+              onChange={(e) => setActiveProjectId(e.target.value || null)}
+            >
+              <option value="">Choose project...</option>
+              {availableProjects.map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <>
+            <TabsContent value="files" className="flex-1 min-h-0 mt-0">
+              <FileTree />
+            </TabsContent>
 
-        <TabsContent value="git" className="flex-1 min-h-0 mt-0">
-          <GitPanel />
-        </TabsContent>
+            <TabsContent value="git" className="flex-1 min-h-0 mt-0">
+              <GitPanel />
+            </TabsContent>
+          </>
+        )}
       </Tabs>
 
       {/* Resize handle */}

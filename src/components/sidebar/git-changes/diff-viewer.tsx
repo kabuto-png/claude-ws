@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Loader2, X, FileCode, Plus, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { useProjectStore } from '@/stores/project-store';
+import { useActiveProject } from '@/hooks/use-active-project';
 import { cn } from '@/lib/utils';
 import type { GitDiff } from '@/types';
 
@@ -21,20 +21,20 @@ interface DiffLine {
 }
 
 export function DiffViewer({ filePath, staged, onClose }: DiffViewerProps) {
-  const { currentProject } = useProjectStore();
+  const activeProject = useActiveProject();
   const [diff, setDiff] = useState<GitDiff | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!currentProject?.path) return;
+    if (!activeProject?.path) return;
 
     const fetchDiff = async () => {
       setLoading(true);
       setError(null);
       try {
         const params = new URLSearchParams({
-          path: currentProject.path,
+          path: activeProject.path,
           file: filePath,
           staged: staged.toString(),
         });
@@ -50,7 +50,7 @@ export function DiffViewer({ filePath, staged, onClose }: DiffViewerProps) {
     };
 
     fetchDiff();
-  }, [currentProject?.path, filePath, staged]);
+  }, [activeProject?.path, filePath, staged]);
 
   const parseDiff = (rawDiff: string): DiffLine[] => {
     const lines: DiffLine[] = [];

@@ -1,27 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { nanoid } from 'nanoid';
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, inArray } from 'drizzle-orm';
 import type { TaskStatus } from '@/types';
 
-// GET /api/tasks?projectId=xxx - List tasks by project
+// GET /api/tasks - List tasks
+// Query params:
+//   ?projectId=xxx - Single project (backward compat)
+//   ?projectIds=id1,id2,id3 - Multiple projects
+//   No params - All tasks
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const projectId = searchParams.get('projectId');
+    const projectIds = searchParams.get('projectIds');
 
-    if (!projectId) {
-      return NextResponse.json(
-        { error: 'projectId query parameter is required' },
-        { status: 400 }
-      );
+    let tasks;
+
+    if (projectIds) {
+      // Multi-project mode
+      const ids = projectIds.split(',').filter(Boolean);
+      if (ids.length > 0) {
+        tasks = await db
+          .select()
+          .from(schema.tasks)
+          .where(inArray(schema.tasks.projectId, ids))
+          .orderBy(schema.tasks.status, schema.tasks.position);
+      } else {
+        // Empty filter = all tasks
+        tasks = await db
+          .select()
+          .from(schema.tasks)
+          .orderBy(schema.tasks.status, schema.tasks.position);
+      }
+    } else if (projectId) {
+      // Single project mode (backward compat)
+      tasks = await db
+        .select()
+        .from(schema.tasks)
+        .where(eq(schema.tasks.projectId, projectId))
+        .orderBy(schema.tasks.status, schema.tasks.position);
+    } else {
+      // No filter - return all tasks
+      tasks = await db
+        .select()
+        .from(schema.tasks)
+        .orderBy(schema.tasks.status, schema.tasks.position);
     }
-
-    const tasks = await db
-      .select()
-      .from(schema.tasks)
-      .where(eq(schema.tasks.projectId, projectId))
-      .orderBy(schema.tasks.status, schema.tasks.position);
 
     return NextResponse.json(tasks);
   } catch (error) {

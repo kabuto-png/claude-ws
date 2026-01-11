@@ -18,33 +18,24 @@ function KanbanApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
 
-  const { currentProject, projects, fetchProjects, loading: projectLoading } = useProjectStore();
+  const { projects, selectedProjectIds, fetchProjects, loading: projectLoading } = useProjectStore();
   const { selectedTask, fetchTasks } = useTaskStore();
   const { toggleSidebar, previewFile, diffFile } = useSidebarStore();
+
+  // Auto-show setup when no projects
+  const autoShowSetup = !projectLoading && projects.length === 0;
 
   // Fetch projects on mount
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
 
-  // Show setup dialog if no projects, or auto-select first project
+  // Fetch tasks when selectedProjectIds changes
   useEffect(() => {
     if (!projectLoading) {
-      if (projects.length === 0) {
-        setSetupOpen(true);
-      } else if (!currentProject) {
-        // Auto-select first project if none selected
-        useProjectStore.getState().setCurrentProject(projects[0]);
-      }
+      fetchTasks(selectedProjectIds);
     }
-  }, [projectLoading, projects, currentProject]);
-
-  // Fetch tasks when project changes
-  useEffect(() => {
-    if (currentProject) {
-      fetchTasks(currentProject.id);
-    }
-  }, [currentProject, fetchTasks]);
+  }, [selectedProjectIds, projectLoading, fetchTasks]);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -91,6 +82,7 @@ function KanbanApp() {
       <Header
         onCreateTask={() => setCreateTaskOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onAddProject={() => setSetupOpen(true)}
       />
 
       <div className="flex flex-1 overflow-hidden">
@@ -106,12 +98,12 @@ function KanbanApp() {
         {/* Main content - Kanban board (hidden when preview is open) */}
         {!previewFile && !diffFile && (
           <main className="flex-1 overflow-auto min-w-0">
-            {currentProject ? (
+            {projects.length > 0 ? (
               <Board />
             ) : (
               <div className="flex h-full items-center justify-center">
                 <div className="text-center">
-                  <p className="text-muted-foreground mb-4">No project selected</p>
+                  <p className="text-muted-foreground mb-4">No projects configured</p>
                   <button
                     onClick={() => setSetupOpen(true)}
                     className="text-primary underline hover:no-underline"
@@ -131,7 +123,7 @@ function KanbanApp() {
       {/* Dialogs */}
       <CreateTaskDialog open={createTaskOpen} onOpenChange={setCreateTaskOpen} />
       <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
-      <SetupDialog open={setupOpen} onOpenChange={setSetupOpen} />
+      <SetupDialog open={setupOpen || autoShowSetup} onOpenChange={setSetupOpen} />
     </div>
   );
 }

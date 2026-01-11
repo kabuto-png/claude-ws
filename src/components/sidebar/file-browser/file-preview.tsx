@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { CodeBlock } from '@/components/claude/code-block';
 import { useSidebarStore } from '@/stores/sidebar-store';
-import { useProjectStore } from '@/stores/project-store';
+import { useActiveProject } from '@/hooks/use-active-project';
 
 interface FileContent {
   content: string | null;
@@ -17,7 +17,7 @@ interface FileContent {
 }
 
 export function FilePreview() {
-  const { currentProject } = useProjectStore();
+  const activeProject = useActiveProject();
   const { previewFile, closePreview } = useSidebarStore();
 
   const [content, setContent] = useState<FileContent | null>(null);
@@ -25,7 +25,7 @@ export function FilePreview() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!previewFile || !currentProject?.path) {
+    if (!previewFile || !activeProject?.path) {
       setContent(null);
       return;
     }
@@ -35,7 +35,7 @@ export function FilePreview() {
       setError(null);
       try {
         const res = await fetch(
-          `/api/files/content?basePath=${encodeURIComponent(currentProject.path)}&path=${encodeURIComponent(previewFile)}`
+          `/api/files/content?basePath=${encodeURIComponent(activeProject.path)}&path=${encodeURIComponent(previewFile)}`
         );
         if (!res.ok) {
           const data = await res.json();
@@ -51,7 +51,7 @@ export function FilePreview() {
     };
 
     fetchContent();
-  }, [previewFile, currentProject?.path]);
+  }, [previewFile, activeProject?.path]);
 
   if (!previewFile) return null;
 

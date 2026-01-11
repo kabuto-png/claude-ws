@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { CodeBlock } from '@/components/claude/code-block';
 import { useSidebarStore } from '@/stores/sidebar-store';
-import { useProjectStore } from '@/stores/project-store';
+import { useActiveProject } from '@/hooks/use-active-project';
 import { cn } from '@/lib/utils';
 
 interface FileContent {
@@ -22,7 +22,7 @@ const MAX_WIDTH = 900;
 const DEFAULT_WIDTH = 560;
 
 export function FilePreviewPanel() {
-  const { currentProject } = useProjectStore();
+  const activeProject = useActiveProject();
   const { previewFile, closePreview } = useSidebarStore();
 
   const [content, setContent] = useState<FileContent | null>(null);
@@ -63,7 +63,7 @@ export function FilePreviewPanel() {
   }, [isResizing]);
 
   useEffect(() => {
-    if (!previewFile || !currentProject?.path) {
+    if (!previewFile || !activeProject?.path) {
       setContent(null);
       return;
     }
@@ -73,7 +73,7 @@ export function FilePreviewPanel() {
       setError(null);
       try {
         const res = await fetch(
-          `/api/files/content?basePath=${encodeURIComponent(currentProject.path)}&path=${encodeURIComponent(previewFile)}`
+          `/api/files/content?basePath=${encodeURIComponent(activeProject.path)}&path=${encodeURIComponent(previewFile)}`
         );
         if (!res.ok) {
           const data = await res.json();
@@ -89,7 +89,7 @@ export function FilePreviewPanel() {
     };
 
     fetchContent();
-  }, [previewFile, currentProject?.path]);
+  }, [previewFile, activeProject?.path]);
 
   const handleCopy = async () => {
     if (content?.content) {

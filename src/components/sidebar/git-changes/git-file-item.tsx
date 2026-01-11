@@ -77,19 +77,6 @@ export function GitFileItem({
         )}
       </div>
 
-      {/* Stats: +X -Y for modified, "New" for new files */}
-      {isNew ? (
-        <span className="text-[10px] text-green-500 font-medium shrink-0 mr-1">
-          New
-        </span>
-      ) : hasStats ? (
-        <span className="text-[10px] shrink-0 mr-1">
-          <span className="text-green-500">+{file.additions || 0}</span>
-          {' '}
-          <span className="text-red-500">-{file.deletions || 0}</span>
-        </span>
-      ) : null}
-
       {/* Action buttons (visible on hover) */}
       <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
         {staged ? (
@@ -132,14 +119,17 @@ export function GitFileItem({
         )}
       </div>
 
-      {/* Status badge */}
-      <span
-        className={cn(
-          'text-xs font-bold shrink-0 w-4 text-center',
-          statusColors[file.status] || 'text-muted-foreground'
-        )}
-      >
-        {statusLabels[file.status] || file.status}
+      {/* Stats: +X -Y for modified, "New" for new files - moved to end */}
+      <span className="text-[10px] shrink-0 w-16 text-right font-medium">
+        {isNew ? (
+          <span className="text-green-500">New</span>
+        ) : hasStats ? (
+          <>
+            <span className="text-green-500">+{file.additions || 0}</span>
+            {' '}
+            <span className="text-red-500">-{file.deletions || 0}</span>
+          </>
+        ) : null}
       </span>
     </div>
   );

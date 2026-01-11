@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { GripVertical } from 'lucide-react';
 import { useTaskStore } from '@/stores/task-store';
+import { useProjectStore } from '@/stores/project-store';
 
 interface TaskCardProps {
   task: Task;
@@ -16,7 +17,12 @@ interface TaskCardProps {
 
 export function TaskCard({ task, attemptCount = 0 }: TaskCardProps) {
   const { selectedTaskId, selectTask } = useTaskStore();
+  const { projects, selectedProjectIds, isAllProjectsMode } = useProjectStore();
   const isSelected = selectedTaskId === task.id;
+
+  // Show project badge when viewing multiple projects
+  const showProjectBadge = isAllProjectsMode() || selectedProjectIds.length > 1;
+  const projectName = projects.find(p => p.id === task.projectId)?.name;
 
   const {
     attributes,
@@ -66,6 +72,13 @@ export function TaskCard({ task, attemptCount = 0 }: TaskCardProps) {
           </button>
 
           <div className="flex-1 min-w-0">
+            {/* Project badge */}
+            {showProjectBadge && projectName && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 mb-1 font-normal">
+                {projectName}
+              </Badge>
+            )}
+
             <h3 className="font-medium text-sm text-gray-900 dark:text-gray-100 truncate">
               {task.title}
             </h3>

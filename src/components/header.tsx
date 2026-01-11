@@ -1,6 +1,6 @@
 'use client';
 
-import { Settings, Plus, Search, FolderOpen, PanelLeft } from 'lucide-react';
+import { Settings, Plus, Search, PanelLeft } from 'lucide-react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,17 +10,17 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import { useProjectStore } from '@/stores/project-store';
 import { useTaskStore } from '@/stores/task-store';
 import { useSidebarStore } from '@/stores/sidebar-store';
+import { ProjectSelector } from '@/components/header/project-selector';
 
 interface HeaderProps {
   onCreateTask: () => void;
   onOpenSettings: () => void;
+  onAddProject: () => void;
 }
 
-export function Header({ onCreateTask, onOpenSettings }: HeaderProps) {
-  const { currentProject } = useProjectStore();
+export function Header({ onCreateTask, onOpenSettings, onAddProject }: HeaderProps) {
   const { tasks } = useTaskStore();
   const { isOpen: sidebarOpen, toggleSidebar } = useSidebarStore();
 
@@ -68,14 +68,13 @@ export function Header({ onCreateTask, onOpenSettings }: HeaderProps) {
           </div>
         </div>
 
-        {/* Project info */}
-        {currentProject && (
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <FolderOpen className="h-4 w-4" />
-            <span className="max-w-[200px] truncate">{currentProject.name}</span>
-            <span className="text-xs">({tasks.length} tasks)</span>
-          </div>
-        )}
+        {/* Project selector */}
+        <div className="flex items-center gap-2">
+          <ProjectSelector onAddProject={onAddProject} />
+          <span className="text-xs text-muted-foreground">
+            ({tasks.length} tasks)
+          </span>
+        </div>
 
         {/* Actions */}
         <div className="flex items-center gap-2 ml-auto">

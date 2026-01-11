@@ -23,7 +23,7 @@ export function PromptInput({
   const [prompt, setPrompt] = useState('');
   const [showCommands, setShowCommands] = useState(false);
   const [commandFilter, setCommandFilter] = useState('');
-  const [selectedCommand, setSelectedCommand] = useState<{ name: string; subcommand?: string } | null>(null);
+  const [selectedCommand, setSelectedCommand] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Detect slash command input
@@ -99,10 +99,10 @@ export function PromptInput({
     }
   };
 
-  const handleCommandSelect = (command: string, subcommand?: string) => {
-    const cmdText = subcommand ? `/${command}:${subcommand} ` : `/${command} `;
+  const handleCommandSelect = (command: string) => {
+    const cmdText = `/${command} `;
     setPrompt(cmdText);
-    setSelectedCommand({ name: command, subcommand });
+    setSelectedCommand(command);
     setShowCommands(false);
     textareaRef.current?.focus();
   };
@@ -143,9 +143,7 @@ export function PromptInput({
           <div className="absolute top-2 right-2">
             <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-primary/10 text-primary rounded-full">
               <Command className="size-3" />
-              {selectedCommand.subcommand
-                ? `${selectedCommand.name}:${selectedCommand.subcommand}`
-                : selectedCommand.name}
+              {selectedCommand}
             </span>
           </div>
         )}

@@ -7,7 +7,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { FileTreeItem } from './file-tree-item';
 import { FileSearch } from './file-search';
 import { useSidebarStore } from '@/stores/sidebar-store';
-import { useProjectStore } from '@/stores/project-store';
+import { useActiveProject } from '@/hooks/use-active-project';
 import type { FileEntry } from '@/types';
 
 interface FileTreeProps {
@@ -15,7 +15,7 @@ interface FileTreeProps {
 }
 
 export function FileTree({ onFileSelect }: FileTreeProps) {
-  const { currentProject } = useProjectStore();
+  const activeProject = useActiveProject();
   const { expandedFolders, toggleFolder, selectedFile, setSelectedFile, setPreviewFile } =
     useSidebarStore();
 
@@ -27,7 +27,7 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
 
   // Fetch file tree
   useEffect(() => {
-    if (!currentProject?.path) {
+    if (!activeProject?.path) {
       setEntries([]);
       setLoading(false);
       return;
@@ -38,7 +38,7 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
       setError(null);
       try {
         const res = await fetch(
-          `/api/files?path=${encodeURIComponent(currentProject.path)}&depth=10&t=${Date.now()}`
+          `/api/files?path=${encodeURIComponent(activeProject.path)}&depth=10&t=${Date.now()}`
         );
         if (!res.ok) throw new Error('Failed to fetch files');
         const data = await res.json();
@@ -51,7 +51,7 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
     };
 
     fetchTree();
-  }, [currentProject?.path, refreshKey]);
+  }, [activeProject?.path, refreshKey]);
 
   const handleRefresh = useCallback(() => {
     setRefreshKey((k) => k + 1);
@@ -142,7 +142,7 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
     );
   }
 
-  if (!currentProject) {
+  if (!activeProject) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
         No project selected

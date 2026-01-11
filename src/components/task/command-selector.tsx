@@ -1,20 +1,18 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { Command, Zap, ChevronRight } from 'lucide-react';
+import { Command, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface CommandInfo {
   name: string;
   description: string;
   argumentHint?: string;
-  hasSubcommands: boolean;
-  subcommands?: string[];
 }
 
 interface CommandSelectorProps {
   isOpen: boolean;
-  onSelect: (command: string, subcommand?: string) => void;
+  onSelect: (command: string) => void;
   onClose: () => void;
   filter?: string;
   className?: string;
@@ -30,7 +28,6 @@ export function CommandSelector({
   const [commands, setCommands] = useState<CommandInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [expandedCommand, setExpandedCommand] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   // Fetch commands
@@ -75,39 +72,21 @@ export function CommandSelector({
         e.preventDefault();
         const selected = filteredCommands[selectedIndex];
         if (selected) {
-          if (selected.hasSubcommands && !expandedCommand) {
-            setExpandedCommand(selected.name);
-          } else {
-            onSelect(expandedCommand || selected.name);
-          }
+          onSelect(selected.name);
         }
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        if (expandedCommand) {
-          setExpandedCommand(null);
-        } else {
-          onClose();
-        }
-      } else if (e.key === 'ArrowRight') {
-        const selected = filteredCommands[selectedIndex];
-        if (selected?.hasSubcommands) {
-          e.preventDefault();
-          setExpandedCommand(selected.name);
-        }
-      } else if (e.key === 'ArrowLeft' && expandedCommand) {
-        e.preventDefault();
-        setExpandedCommand(null);
+        onClose();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, selectedIndex, filteredCommands, expandedCommand, onSelect, onClose]);
+  }, [isOpen, selectedIndex, filteredCommands, onSelect, onClose]);
 
   // Reset selection when filter changes
   useEffect(() => {
     setSelectedIndex(0);
-    setExpandedCommand(null);
   }, [filter]);
 
   // Scroll selected item into view
@@ -123,11 +102,6 @@ export function CommandSelector({
 
   if (!isOpen) return null;
 
-  // Show subcommands if a command is expanded
-  const expandedCmd = expandedCommand
-    ? commands.find((c) => c.name === expandedCommand)
-    : null;
-
   return (
     <div
       className={cn(
@@ -138,17 +112,7 @@ export function CommandSelector({
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b bg-muted/50">
         <Command className="size-4 text-muted-foreground" />
-        <span className="text-sm font-medium">
-          {expandedCommand ? `/${expandedCommand}` : 'Commands'}
-        </span>
-        {expandedCommand && (
-          <button
-            onClick={() => setExpandedCommand(null)}
-            className="ml-auto text-xs text-muted-foreground hover:text-foreground"
-          >
-            ← Back
-          </button>
-        )}
+        <span className="text-sm font-medium">Commands</span>
       </div>
 
       {/* Command list */}
@@ -157,23 +121,6 @@ export function CommandSelector({
           <div className="p-4 text-center text-sm text-muted-foreground">
             Loading commands...
           </div>
-        ) : expandedCmd ? (
-          // Subcommands
-          expandedCmd.subcommands?.map((sub, index) => (
-            <button
-              key={sub}
-              onClick={() => onSelect(expandedCommand!, sub)}
-              className={cn(
-                'w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 transition-colors',
-                index === selectedIndex && 'bg-muted'
-              )}
-            >
-              <Zap className="size-4 text-primary shrink-0" />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium">/{expandedCommand}:{sub}</div>
-              </div>
-            </button>
-          ))
         ) : filteredCommands.length === 0 ? (
           <div className="p-4 text-center text-sm text-muted-foreground">
             No commands found
@@ -182,13 +129,7 @@ export function CommandSelector({
           filteredCommands.map((cmd, index) => (
             <button
               key={cmd.name}
-              onClick={() => {
-                if (cmd.hasSubcommands) {
-                  setExpandedCommand(cmd.name);
-                } else {
-                  onSelect(cmd.name);
-                }
-              }}
+              onClick={() => onSelect(cmd.name)}
               onMouseEnter={() => setSelectedIndex(index)}
               className={cn(
                 'w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-muted/50 transition-colors',
@@ -205,9 +146,6 @@ export function CommandSelector({
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{cmd.description}</p>
               </div>
-              {cmd.hasSubcommands && (
-                <ChevronRight className="size-4 text-muted-foreground shrink-0" />
-              )}
             </button>
           ))
         )}

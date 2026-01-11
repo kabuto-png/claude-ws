@@ -1,17 +1,20 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Loader2, RefreshCw, GitBranch, ArrowUp, ArrowDown, Check } from 'lucide-react';
+import { Loader2, RefreshCw, GitBranch, ArrowUp, ArrowDown, Check, ChevronDown, ChevronRight, Plus, Minus, Undo2, Sparkles } from 'lucide-react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { GitSection } from './git-section';
 import { GitGraph } from './git-graph';
-import { useProjectStore } from '@/stores/project-store';
+import { GitFileItem } from './git-file-item';
+import { useActiveProject } from '@/hooks/use-active-project';
 import { useSidebarStore } from '@/stores/sidebar-store';
+import { cn } from '@/lib/utils';
 import type { GitStatus, GitFileStatus } from '@/types';
 
 export function GitPanel() {
-  const { currentProject } = useProjectStore();
+  const activeProject = useActiveProject();
   const { setDiffFile } = useSidebarStore();
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -20,9 +23,11 @@ export function GitPanel() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [commitMessage, setCommitMessage] = useState('');
   const [committing, setCommitting] = useState(false);
+  const [changesExpanded, setChangesExpanded] = useState(true);
+  const [stagedExpanded, setStagedExpanded] = useState(true);
 
   const fetchStatus = useCallback(async () => {
-    if (!currentProject?.path) {
+    if (!activeProject?.path) {
       setStatus(null);
       setLoading(false);
       return;
@@ -32,7 +37,7 @@ export function GitPanel() {
     setError(null);
     try {
       const res = await fetch(
-        `/api/git/status?path=${encodeURIComponent(currentProject.path)}`
+        `/api/git/status?path=${encodeURIComponent(activeProject.path)}`
       );
       if (!res.ok) {
         const data = await res.json();
@@ -47,7 +52,7 @@ export function GitPanel() {
     } finally {
       setLoading(false);
     }
-  }, [currentProject?.path]);
+  }, [activeProject?.path]);
 
   // Fetch on mount and when project changes
   useEffect(() => {
@@ -73,99 +78,99 @@ export function GitPanel() {
 
   // Git operations
   const stageFile = useCallback(async (filePath: string) => {
-    if (!currentProject?.path) return;
+    if (!activeProject?.path) return;
     try {
       await fetch('/api/git/stage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath: currentProject.path, files: [filePath] }),
+        body: JSON.stringify({ projectPath: activeProject.path, files: [filePath] }),
       });
       fetchStatus();
     } catch (err) {
       console.error('Failed to stage file:', err);
     }
-  }, [currentProject?.path, fetchStatus]);
+  }, [activeProject?.path, fetchStatus]);
 
   const unstageFile = useCallback(async (filePath: string) => {
-    if (!currentProject?.path) return;
+    if (!activeProject?.path) return;
     try {
       await fetch('/api/git/stage', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath: currentProject.path, files: [filePath] }),
+        body: JSON.stringify({ projectPath: activeProject.path, files: [filePath] }),
       });
       fetchStatus();
     } catch (err) {
       console.error('Failed to unstage file:', err);
     }
-  }, [currentProject?.path, fetchStatus]);
+  }, [activeProject?.path, fetchStatus]);
 
   const discardFile = useCallback(async (filePath: string) => {
-    if (!currentProject?.path) return;
+    if (!activeProject?.path) return;
     if (!confirm(`Discard changes to ${filePath}?`)) return;
     try {
       await fetch('/api/git/discard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath: currentProject.path, files: [filePath] }),
+        body: JSON.stringify({ projectPath: activeProject.path, files: [filePath] }),
       });
       fetchStatus();
     } catch (err) {
       console.error('Failed to discard file:', err);
     }
-  }, [currentProject?.path, fetchStatus]);
+  }, [activeProject?.path, fetchStatus]);
 
   const stageAll = useCallback(async () => {
-    if (!currentProject?.path) return;
+    if (!activeProject?.path) return;
     try {
       await fetch('/api/git/stage', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath: currentProject.path, all: true }),
+        body: JSON.stringify({ projectPath: activeProject.path, all: true }),
       });
       fetchStatus();
     } catch (err) {
       console.error('Failed to stage all:', err);
     }
-  }, [currentProject?.path, fetchStatus]);
+  }, [activeProject?.path, fetchStatus]);
 
   const unstageAll = useCallback(async () => {
-    if (!currentProject?.path) return;
+    if (!activeProject?.path) return;
     try {
       await fetch('/api/git/stage', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath: currentProject.path, all: true }),
+        body: JSON.stringify({ projectPath: activeProject.path, all: true }),
       });
       fetchStatus();
     } catch (err) {
       console.error('Failed to unstage all:', err);
     }
-  }, [currentProject?.path, fetchStatus]);
+  }, [activeProject?.path, fetchStatus]);
 
   const discardAll = useCallback(async () => {
-    if (!currentProject?.path) return;
+    if (!activeProject?.path) return;
     if (!confirm('Discard ALL changes? This cannot be undone!')) return;
     try {
       await fetch('/api/git/discard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath: currentProject.path, all: true }),
+        body: JSON.stringify({ projectPath: activeProject.path, all: true }),
       });
       fetchStatus();
     } catch (err) {
       console.error('Failed to discard all:', err);
     }
-  }, [currentProject?.path, fetchStatus]);
+  }, [activeProject?.path, fetchStatus]);
 
   const handleCommit = useCallback(async () => {
-    if (!currentProject?.path || !commitMessage.trim()) return;
+    if (!activeProject?.path || !commitMessage.trim()) return;
     setCommitting(true);
     try {
       const res = await fetch('/api/git/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath: currentProject.path, message: commitMessage }),
+        body: JSON.stringify({ projectPath: activeProject.path, message: commitMessage }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -178,7 +183,7 @@ export function GitPanel() {
     } finally {
       setCommitting(false);
     }
-  }, [currentProject?.path, commitMessage, fetchStatus]);
+  }, [activeProject?.path, commitMessage, fetchStatus]);
 
   // Combine unstaged and untracked into single "Changes" section
   const changes: GitFileStatus[] = useMemo(() => {
@@ -205,7 +210,7 @@ export function GitPanel() {
     );
   }
 
-  if (!currentProject) {
+  if (!activeProject) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
         No project selected
@@ -260,70 +265,185 @@ export function GitPanel() {
         )}
       </div>
 
-      {/* Commit message input */}
-      <div className="p-2 border-b">
-        <div className="flex gap-1.5">
-          <textarea
-            className="flex-1 min-h-[60px] px-2 py-1.5 text-sm bg-muted/50 border rounded-md resize-none focus:outline-none focus:ring-1 focus:ring-ring"
-            placeholder="Commit message"
-            value={commitMessage}
-            onChange={(e) => setCommitMessage(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canCommit) {
-                handleCommit();
-              }
-            }}
-          />
-        </div>
-        <Button
-          className="w-full mt-1.5"
-          size="sm"
-          disabled={!canCommit || committing}
-          onClick={handleCommit}
-        >
-          {committing ? (
-            <Loader2 className="size-4 animate-spin mr-1.5" />
-          ) : (
-            <Check className="size-4 mr-1.5" />
-          )}
-          Commit
-        </Button>
-      </div>
-
       {/* File sections */}
       <ScrollArea className="flex-1">
         <div className="py-1">
-          {totalChanges === 0 ? (
-            <div className="flex flex-col items-center justify-center py-4 text-muted-foreground text-sm">
-              <p>No changes</p>
-              <p className="text-xs mt-1">Working tree clean</p>
+          {/* CHANGES section with commit input inside */}
+          <div className="mb-1">
+            {/* Section header */}
+            <div
+              className={cn(
+                'group flex items-center gap-1 px-2 py-1 text-[11px] font-semibold uppercase tracking-wide',
+                'hover:bg-accent/30 transition-colors rounded-sm cursor-pointer'
+              )}
+              onClick={() => setChangesExpanded(!changesExpanded)}
+            >
+              {changesExpanded ? (
+                <ChevronDown className="size-4" />
+              ) : (
+                <ChevronRight className="size-4" />
+              )}
+              <span className="flex-1">Changes</span>
+
+              {/* Section action buttons */}
+              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button
+                  className="p-0.5 hover:bg-accent rounded text-muted-foreground hover:text-foreground"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    discardAll();
+                  }}
+                  title="Discard All Changes"
+                >
+                  <Undo2 className="size-3.5" />
+                </button>
+                <button
+                  className="p-0.5 hover:bg-accent rounded"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    stageAll();
+                  }}
+                  title="Stage All Changes"
+                >
+                  <Plus className="size-3.5" />
+                </button>
+              </div>
+
+              {/* File count badge */}
+              <span className="px-1.5 py-0.5 bg-muted/80 rounded text-[10px] font-semibold ml-1">
+                {totalChanges}
+              </span>
             </div>
-          ) : (
-            <>
-              {/* Staged Changes */}
-              <GitSection
-                title="Staged Changes"
-                files={status?.staged || []}
-                selectedFile={selectedFile}
-                onFileClick={handleFileClick}
-                staged={true}
-                onUnstageFile={unstageFile}
-                onUnstageAll={unstageAll}
-              />
-              {/* Changes (unstaged + untracked) */}
-              <GitSection
-                title="Changes"
-                files={changes}
-                selectedFile={selectedFile}
-                onFileClick={handleFileClick}
-                staged={false}
-                onStageFile={stageFile}
-                onStageAll={stageAll}
-                onDiscardFile={discardFile}
-                onDiscardAll={discardAll}
-              />
-            </>
-          )}
+
+            {/* Changes content - commit input + file lists */}
+            {changesExpanded && (
+              <div className="mt-0.5">
+                {/* Commit message input inside Changes section */}
+                <div className="px-2 pb-2">
+                  <div className="flex gap-1.5 items-center">
+                    <input
+                      type="text"
+                      className="flex-1 h-8 px-2 text-sm bg-muted/50 border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                      placeholder="Commit message"
+                      value={commitMessage}
+                      onChange={(e) => setCommitMessage(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canCommit) {
+                          handleCommit();
+                        }
+                      }}
+                    />
+                    {/* Generate commit message button */}
+                    <button
+                      className="flex items-center justify-center size-8 hover:bg-accent rounded-md border bg-muted/50 transition-colors shrink-0"
+                      title="Generate commit message with AI"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // TODO: Implement AI commit message generation
+                        alert('AI commit message generation coming soon!');
+                      }}
+                    >
+                      <Image
+                        src="/logo.png"
+                        alt="Generate"
+                        width={18}
+                        height={18}
+                        className="opacity-80 hover:opacity-100"
+                      />
+                    </button>
+                  </div>
+                  <Button
+                    className="w-full mt-1.5"
+                    size="sm"
+                    disabled={!canCommit || committing}
+                    onClick={handleCommit}
+                  >
+                    {committing ? (
+                      <Loader2 className="size-4 animate-spin mr-1.5" />
+                    ) : (
+                      <Check className="size-4 mr-1.5" />
+                    )}
+                    Commit
+                  </Button>
+                </div>
+
+                {totalChanges === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-4 text-muted-foreground text-sm">
+                    <p>No changes</p>
+                    <p className="text-xs mt-1">Working tree clean</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Staged Changes subsection */}
+                    {(status?.staged.length || 0) > 0 && (
+                      <div className="mb-1">
+                        <div
+                          className={cn(
+                            'group flex items-center gap-1 px-2 py-0.5 text-[10px] font-medium text-muted-foreground',
+                            'hover:bg-accent/30 transition-colors rounded-sm cursor-pointer'
+                          )}
+                          onClick={() => setStagedExpanded(!stagedExpanded)}
+                        >
+                          {stagedExpanded ? (
+                            <ChevronDown className="size-3" />
+                          ) : (
+                            <ChevronRight className="size-3" />
+                          )}
+                          <span className="flex-1">Staged</span>
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              className="p-0.5 hover:bg-accent rounded"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                unstageAll();
+                              }}
+                              title="Unstage All"
+                            >
+                              <Minus className="size-3" />
+                            </button>
+                          </div>
+                          <span className="px-1 py-0.5 bg-muted/80 rounded text-[9px] font-semibold">
+                            {status?.staged.length || 0}
+                          </span>
+                        </div>
+                        {stagedExpanded && (
+                          <div>
+                            {status?.staged.map((file) => (
+                              <GitFileItem
+                                key={file.path}
+                                file={file}
+                                isSelected={selectedFile === file.path}
+                                staged={true}
+                                onClick={() => handleFileClick(file.path, true)}
+                                onUnstage={() => unstageFile(file.path)}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Unstaged Changes */}
+                    {changes.length > 0 && (
+                      <div>
+                        {changes.map((file) => (
+                          <GitFileItem
+                            key={file.path}
+                            file={file}
+                            isSelected={selectedFile === file.path}
+                            staged={false}
+                            onClick={() => handleFileClick(file.path, false)}
+                            onStage={() => stageFile(file.path)}
+                            onDiscard={() => discardFile(file.path)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Commit Graph */}
           <GitGraph />

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
+import { useState, useEffect, FormEvent } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -21,11 +21,34 @@ interface CreateTaskDialogProps {
 
 export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) {
   const { createTask } = useTaskStore();
-  const { currentProject } = useProjectStore();
+  const {
+    projects,
+    selectedProjectIds,
+    activeProjectId,
+    isAllProjectsMode,
+    getSelectedProjects
+  } = useProjectStore();
+
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Get available projects for the dropdown
+  const availableProjects = getSelectedProjects();
+  const isMultiProject = isAllProjectsMode() || selectedProjectIds.length !== 1;
+
+  // Set default project when dialog opens
+  useEffect(() => {
+    if (open) {
+      // Priority: activeProjectId > first selectedProjectId > first project
+      const defaultProject = activeProjectId
+        || (selectedProjectIds.length > 0 ? selectedProjectIds[0] : null)
+        || (projects.length > 0 ? projects[0].id : null);
+      setSelectedProjectId(defaultProject || '');
+    }
+  }, [open, activeProjectId, selectedProjectIds, projects]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -35,8 +58,8 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
       return;
     }
 
-    if (!currentProject) {
-      setError('No project selected');
+    if (!selectedProjectId) {
+      setError('Please select a project');
       return;
     }
 
@@ -44,7 +67,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     setError(null);
 
     try {
-      await createTask(currentProject.id, title.trim(), description.trim() || null);
+      await createTask(selectedProjectId, title.trim(), description.trim() || null);
 
       // Reset form
       setTitle('');
@@ -62,6 +85,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
       if (!newOpen) {
         setTitle('');
         setDescription('');
+        setSelectedProjectId('');
         setError(null);
       }
       onOpenChange(newOpen);
@@ -79,6 +103,27 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+          {/* Project selector - show when multi-project mode */}
+          {isMultiProject && (
+            <div className="space-y-2">
+              <label htmlFor="project" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Project <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="project"
+                className="w-full border rounded-md p-2 text-sm bg-background"
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                disabled={isSubmitting}
+              >
+                <option value="">Select a project...</option>
+                {availableProjects.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="space-y-2">
             <label htmlFor="title" className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Title <span className="text-red-500">*</span>
