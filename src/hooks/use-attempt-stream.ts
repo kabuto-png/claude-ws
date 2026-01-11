@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import type { ClaudeOutput, WsAttemptFinished } from '@/types';
+import { useRunningTasksStore } from '@/stores/running-tasks-store';
 
 interface UseAttemptStreamOptions {
   taskId?: string;
@@ -54,6 +55,7 @@ export function useAttemptStream(
   const [currentPrompt, setCurrentPrompt] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [activeQuestion, setActiveQuestion] = useState<ActiveQuestion | null>(null);
+  const { addRunningTask, removeRunningTask } = useRunningTasksStore();
 
   // Keep callback ref updated
   onCompleteRef.current = options?.onComplete;
@@ -108,6 +110,9 @@ export function useAttemptStream(
           if (data.data.type === 'result') {
             console.log('[useAttemptStream] Received result message, stopping');
             setIsRunning(false);
+            if (currentTaskIdRef.current) {
+              removeRunningTask(currentTaskIdRef.current);
+            }
           }
 
           setMessages((prev) => {
@@ -173,6 +178,9 @@ export function useAttemptStream(
       setCurrentAttemptId((currentId) => {
         if (data.attemptId === currentId) {
           setIsRunning(false);
+          if (currentTaskIdRef.current) {
+            removeRunningTask(currentTaskIdRef.current);
+          }
           // Call onComplete callback with taskId
           if (currentTaskIdRef.current && data.status === 'completed') {
             onCompleteRef.current?.(currentTaskIdRef.current);
@@ -186,6 +194,9 @@ export function useAttemptStream(
     socketInstance.on('error', (data: { message: string }) => {
       console.error('Socket error:', data.message);
       setIsRunning(false);
+      if (currentTaskIdRef.current) {
+        removeRunningTask(currentTaskIdRef.current);
+      }
     });
 
     // Listen for AskUserQuestion
@@ -247,6 +258,7 @@ export function useAttemptStream(
             setCurrentPrompt(data.attempt.prompt);
             setMessages(data.messages || []);
             setIsRunning(true);
+            addRunningTask(taskId);
 
             // Subscribe to this attempt's output
             socketRef.current?.emit('attempt:subscribe', { attemptId: data.attempt.id });
@@ -292,6 +304,7 @@ export function useAttemptStream(
       setMessages([]);
       setCurrentPrompt(displayPrompt || prompt);
       setIsRunning(true);
+      addRunningTask(taskId);
 
       // Listen for the new attempt ID
       socket.once('attempt:started', (data: { attemptId: string; taskId: string }) => {
@@ -303,7 +316,7 @@ export function useAttemptStream(
 
       socket.emit('attempt:start', { taskId, prompt, displayPrompt, fileIds });
     },
-    [isConnected]
+    [isConnected, addRunningTask]
   );
 
   // Answer a question from AskUserQuestion
@@ -344,7 +357,10 @@ export function useAttemptStream(
     socket.emit('attempt:cancel', { attemptId: currentAttemptId });
     setIsRunning(false);
     setActiveQuestion(null);
-  }, [currentAttemptId]);
+    if (currentTaskIdRef.current) {
+      removeRunningTask(currentTaskIdRef.current);
+    }
+  }, [currentAttemptId, removeRunningTask]);
 
   return {
     messages,

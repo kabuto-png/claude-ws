@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Command, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -18,6 +18,25 @@ interface CommandSelectorProps {
   onClose: () => void;
   filter?: string;
   className?: string;
+}
+
+// Helper to highlight matched text
+function highlightMatch(text: string, query: string) {
+  if (!query) return text;
+
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+  const parts = text.split(regex);
+
+  return parts.map((part, i) => {
+    if (part.toLowerCase() === query.toLowerCase()) {
+      return (
+        <span key={i} className="bg-blue-500/30 text-blue-600 dark:text-blue-400 font-semibold px-0.5 rounded">
+          {part}
+        </span>
+      );
+    }
+    return part;
+  });
 }
 
 export function CommandSelector({
@@ -53,11 +72,27 @@ export function CommandSelector({
     }
   }, [isOpen]);
 
-  // Filter commands based on input
-  const filteredCommands = commands.filter((cmd) =>
-    cmd.name.toLowerCase().includes(filter.toLowerCase()) ||
-    cmd.description.toLowerCase().includes(filter.toLowerCase())
-  );
+  // Filter and sort commands based on input
+  const filteredCommands = useMemo(() => {
+    const lowerFilter = filter.toLowerCase();
+
+    return commands
+      .filter((cmd) =>
+        cmd.name.toLowerCase().includes(lowerFilter) ||
+        cmd.description.toLowerCase().includes(lowerFilter)
+      )
+      .sort((a, b) => {
+        // Prioritize commands that start with the filter
+        const aStartsWith = a.name.toLowerCase().startsWith(lowerFilter);
+        const bStartsWith = b.name.toLowerCase().startsWith(lowerFilter);
+
+        if (aStartsWith && !bStartsWith) return -1;
+        if (!aStartsWith && bStartsWith) return 1;
+
+        // Then by name alphabetically
+        return a.name.localeCompare(b.name);
+      });
+  }, [commands, filter]);
 
   // Handle keyboard navigation
   useEffect(() => {
@@ -141,7 +176,9 @@ export function CommandSelector({
               <Zap className="size-4 text-primary shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">/{cmd.name}</span>
+                  <span className="text-sm font-medium">
+                    /{highlightMatch(cmd.name, filter)}
+                  </span>
                   {cmd.argumentHint && (
                     <span className="text-xs text-muted-foreground">{cmd.argumentHint}</span>
                   )}

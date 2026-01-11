@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -9,8 +9,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { PromptInput } from '@/components/task/prompt-input';
 import { useTaskStore } from '@/stores/task-store';
 import { useProjectStore } from '@/stores/project-store';
 
@@ -30,7 +30,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
   } = useProjectStore();
 
   const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [chatPrompt, setChatPrompt] = useState('');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,11 +50,9 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     }
   }, [open, activeProjectId, selectedProjectIds, projects]);
 
-  const handleSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-
-    if (!title.trim()) {
-      setError('Title is required');
+  const handleSubmit = async () => {
+    if (!chatPrompt.trim()) {
+      setError('Message is required');
       return;
     }
 
@@ -67,11 +65,13 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     setError(null);
 
     try {
-      await createTask(selectedProjectId, title.trim(), description.trim() || null);
+      // Use title if provided, otherwise use message as title
+      const taskTitle = title.trim() || chatPrompt.trim();
+      await createTask(selectedProjectId, taskTitle, chatPrompt.trim());
 
       // Reset form
       setTitle('');
-      setDescription('');
+      setChatPrompt('');
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create task');
@@ -80,11 +80,15 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
     }
   };
 
+  const handlePromptSubmit = (prompt: string, displayPrompt?: string) => {
+    setChatPrompt(displayPrompt || prompt);
+  };
+
   const handleOpenChange = (newOpen: boolean) => {
     if (!isSubmitting) {
       if (!newOpen) {
         setTitle('');
-        setDescription('');
+        setChatPrompt('');
         setSelectedProjectId('');
         setError(null);
       }
@@ -102,7 +106,7 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 mt-4">
+        <div className="space-y-4 mt-4">
           {/* Project selector - show when multi-project mode */}
           {isMultiProject && (
             <div className="space-y-2">
@@ -125,32 +129,29 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
           )}
 
           <div className="space-y-2">
-            <label htmlFor="title" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Title <span className="text-red-500">*</span>
+            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Message <span className="text-red-500">*</span>
             </label>
-            <Input
-              id="title"
-              placeholder="Enter task title..."
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+            <PromptInput
+              onSubmit={handlePromptSubmit}
+              onChange={setChatPrompt}
+              placeholder="Describe what you want Claude to do... (type / for commands)"
               disabled={isSubmitting}
-              autoFocus
-              className={error && !title.trim() ? 'border-red-500' : ''}
+              hideSendButton
+              disableSubmitShortcut
             />
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="description" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Description
+            <label htmlFor="title" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Title <span className="text-xs text-muted-foreground">(optional)</span>
             </label>
-            <Textarea
-              id="description"
-              placeholder="Enter task description (optional)..."
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+            <Input
+              id="title"
+              placeholder="Enter custom title (defaults to message if empty)..."
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
               disabled={isSubmitting}
-              rows={4}
-              className="resize-none"
             />
           </div>
 
@@ -169,11 +170,11 @@ export function CreateTaskDialog({ open, onOpenChange }: CreateTaskDialogProps) 
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSubmitting}>
+            <Button type="button" onClick={handleSubmit} disabled={isSubmitting || !chatPrompt.trim()}>
               {isSubmitting ? 'Creating...' : 'Create Task'}
             </Button>
           </div>
-        </form>
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -5,9 +5,11 @@ import { CSS } from '@dnd-kit/utilities';
 import { Task } from '@/types';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { GripVertical, MessageSquare } from 'lucide-react';
+import { GripVertical, MessageSquare, Trash2 } from 'lucide-react';
 import { useTaskStore } from '@/stores/task-store';
 import { useProjectStore } from '@/stores/project-store';
+import { useRunningTasksStore } from '@/stores/running-tasks-store';
+import { Button } from '@/components/ui/button';
 
 interface TaskCardProps {
   task: Task;
@@ -15,13 +17,27 @@ interface TaskCardProps {
 }
 
 export function TaskCard({ task, attemptCount = 0 }: TaskCardProps) {
-  const { selectedTaskId, selectTask } = useTaskStore();
+  const { selectedTaskId, selectTask, deleteTask } = useTaskStore();
   const { projects, selectedProjectIds, isAllProjectsMode } = useProjectStore();
+  const { isTaskRunning } = useRunningTasksStore();
   const isSelected = selectedTaskId === task.id;
+  const isRunning = isTaskRunning(task.id);
 
   // Show project badge when viewing multiple projects
   const showProjectBadge = isAllProjectsMode() || selectedProjectIds.length > 1;
   const projectName = projects.find(p => p.id === task.projectId)?.name;
+  const showDeleteButton = task.status === 'done' || task.status === 'cancelled';
+
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Delete task "${task.title}"?`)) return;
+    try {
+      await fetch(`/api/tasks/${task.id}`, { method: 'DELETE' });
+      deleteTask(task.id);
+    } catch (error) {
+      console.error('Failed to delete task:', error);
+    }
+  };
 
   const {
     attributes,
@@ -60,7 +76,7 @@ export function TaskCard({ task, attemptCount = 0 }: TaskCardProps) {
           'px-2.5 py-2.5 transition-all duration-200',
           'hover:border-border/80 hover:shadow-sm',
           'cursor-grab active:cursor-grabbing',
-          isSelected && 'ring-2 ring-primary ring-offset-1 ring-offset-background border-primary',
+          isSelected && 'ring-2 ring-primary ring-offset-1 ring-offset-background border-transparent',
           isDragging && 'shadow-lg'
         )}
         // Prevent text selection during drag, allow tap to open
@@ -88,24 +104,44 @@ export function TaskCard({ task, attemptCount = 0 }: TaskCardProps) {
           <GripVertical className="size-3" />
         </button>
 
+        {/* Delete button - always visible for Done/Cancelled tasks */}
+        {showDeleteButton && (
+          <button
+            onClick={handleDelete}
+            className={cn(
+              'absolute right-1 top-1 p-1 rounded',
+              'text-muted-foreground hover:text-destructive',
+              'hover:bg-muted pointer-events-auto z-10'
+            )}
+            aria-label="Delete task"
+          >
+            <Trash2 className="size-3" />
+          </button>
+        )}
+
         <div className="pl-3.5">
           {/* Header: Project badge - smaller */}
           {showProjectBadge && projectName && (
-            <div className="mb-1">
+            <div style={{ marginBottom: '5px', lineHeight: '10px' }}>
               <span className="inline-flex items-center text-[9px] font-medium text-muted-foreground/70 uppercase tracking-wide">
                 {projectName}
               </span>
             </div>
           )}
 
-          {/* Title - larger */}
-          <h3 className="font-semibold text-sm leading-snug text-card-foreground line-clamp-2">
-            {task.title}
-          </h3>
+          {/* Title - only show if exists and different from description */}
+          {task.title && task.title !== task.description && (
+            <h3 className="font-semibold text-sm leading-snug text-card-foreground line-clamp-2">
+              {task.title}
+            </h3>
+          )}
 
-          {/* Description */}
+          {/* Description - show as main content if no title, otherwise as subtitle */}
           {task.description && (
-            <p className="mt-1 text-[13px] leading-relaxed text-muted-foreground line-clamp-2">
+            <p className={cn(
+              'text-[13px] leading-relaxed line-clamp-2',
+              !task.title || task.title === task.description ? 'text-card-foreground' : 'mt-1 text-muted-foreground'
+            )}>
               {task.description}
             </p>
           )}

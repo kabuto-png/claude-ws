@@ -12,6 +12,7 @@ interface TaskStore {
   addTask: (task: Task) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (id: string) => void;
+  deleteTasksByStatus: (status: TaskStatus) => Promise<void>;
   selectTask: (id: string | null) => void;
   setSelectedTask: (task: Task | null) => void;
   setCreatingTask: (isCreating: boolean) => void;
@@ -44,6 +45,31 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   deleteTask: (id) => set((state) => ({
     tasks: state.tasks.filter((task) => task.id !== id),
   })),
+
+  deleteTasksByStatus: async (status: TaskStatus) => {
+    const tasksToDelete = get().tasks.filter((task) => task.status === status);
+
+    // Optimistic update
+    set((state) => ({
+      tasks: state.tasks.filter((task) => task.status !== status),
+    }));
+
+    try {
+      // Delete all tasks with the given status
+      await Promise.all(
+        tasksToDelete.map((task) =>
+          fetch(`/api/tasks/${task.id}`, { method: 'DELETE' })
+        )
+      );
+    } catch (error) {
+      console.error('Error deleting tasks by status:', error);
+      // Revert on failure
+      set((state) => ({
+        tasks: [...state.tasks, ...tasksToDelete],
+      }));
+      throw error;
+    }
+  },
 
   selectTask: (id) => {
     const task = id ? get().tasks.find((t) => t.id === id) || null : null;
@@ -78,7 +104,14 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       });
       if (!res.ok) throw new Error('Failed to create task');
       const task = await res.json();
-      get().addTask(task);
+
+      // If task was updated (existing task with same title), update it in store
+      if (task.updated) {
+        get().updateTask(task.id, { description: task.description });
+      } else {
+        get().addTask(task);
+      }
+
       get().setCreatingTask(false);
     } catch (error) {
       console.error('Error creating task:', error);

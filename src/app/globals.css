@@ -293,3 +293,26 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Spinning border animation for running tasks */
+@keyframes spin-border {
+  0% {
+    border-color: hsl(var(--primary));
+  }
+  25% {
+    border-color: hsl(var(--primary) / 0.3);
+  }
+  50% {
+    border-color: hsl(var(--primary) / 0.6);
+  }
+  75% {
+    border-color: hsl(var(--primary) / 0.3);
+  }
+  100% {
+    border-color: hsl(var(--primary));
+  }
+}
+
+.animate-spin-border {
+  animation: spin-border 2s linear infinite;
+}

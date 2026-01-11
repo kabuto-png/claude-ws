@@ -19,6 +19,9 @@ interface PromptInputProps {
   placeholder?: string;
   className?: string;
   taskId?: string;
+  hideSendButton?: boolean;
+  disableSubmitShortcut?: boolean;
+  onChange?: (prompt: string) => void;
 }
 
 export function PromptInput({
@@ -28,6 +31,9 @@ export function PromptInput({
   placeholder = 'Describe what you want Claude to do... (type / for commands)',
   className,
   taskId,
+  hideSendButton = false,
+  disableSubmitShortcut = false,
+  onChange,
 }: PromptInputProps) {
   const [prompt, setPrompt] = useState('');
   const [showCommands, setShowCommands] = useState(false);
@@ -50,8 +56,19 @@ export function PromptInput({
 
   const pendingFiles = taskId ? getPendingFiles(taskId) : [];
 
+  // Wrapper to update prompt and notify parent
+  const updatePrompt = (newPrompt: string) => {
+    setPrompt(newPrompt);
+    onChange?.(newPrompt);
+  };
+
   // Detect slash command input
   useEffect(() => {
+    // Clear selected command if prompt no longer matches it
+    if (selectedCommand && !prompt.startsWith(`/${selectedCommand}`)) {
+      setSelectedCommand(null);
+    }
+
     if (prompt.startsWith('/') && !selectedCommand) {
       setShowCommands(true);
       const filter = prompt.slice(1).split(' ')[0];
@@ -116,7 +133,7 @@ export function PromptInput({
     onSubmit(finalPrompt, displayPrompt, fileIds.length > 0 ? fileIds : undefined);
 
     // Clear state
-    setPrompt('');
+    updatePrompt('');
     setSelectedCommand(null);
     setShowCommands(false);
     if (taskId) {
@@ -129,7 +146,7 @@ export function PromptInput({
       return;
     }
 
-    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    if (!disableSubmitShortcut && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
       handleSubmit(e as any);
     }
@@ -137,14 +154,14 @@ export function PromptInput({
     if (e.key === 'Escape' && showCommands) {
       e.preventDefault();
       setShowCommands(false);
-      setPrompt('');
+      updatePrompt('');
     }
   };
 
   const handleCommandSelect = (command: string, isInteractive?: boolean) => {
     if (isInteractive && taskId) {
       setShowCommands(false);
-      setPrompt('');
+      updatePrompt('');
 
       switch (command) {
         case 'rewind':
@@ -164,7 +181,7 @@ export function PromptInput({
           break;
         default:
           const cmdText = `/${command} `;
-          setPrompt(cmdText);
+          updatePrompt(cmdText);
           setSelectedCommand(command);
           textareaRef.current?.focus();
       }
@@ -172,7 +189,7 @@ export function PromptInput({
     }
 
     const cmdText = `/${command} `;
-    setPrompt(cmdText);
+    updatePrompt(cmdText);
     setSelectedCommand(command);
     setShowCommands(false);
     textareaRef.current?.focus();
@@ -181,7 +198,7 @@ export function PromptInput({
   const handleCommandClose = () => {
     setShowCommands(false);
     if (prompt === '/' || (prompt.startsWith('/') && !prompt.includes(' '))) {
-      setPrompt('');
+      updatePrompt('');
     }
   };
 
@@ -219,7 +236,7 @@ export function PromptInput({
           <Textarea
             ref={textareaRef}
             value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
+            onChange={(e) => updatePrompt(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={disabled}
@@ -238,54 +255,60 @@ export function PromptInput({
           )}
         </div>
 
-        <div className="flex items-center justify-between">
-          <p className="text-xs text-muted-foreground">
-            Type <kbd className="px-1 bg-muted rounded">/</kbd> for commands
-            <span className="mx-2">·</span>
-            <kbd className="px-1 bg-muted rounded">
-              {typeof navigator !== 'undefined' && navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}
-            </kbd>
-            +<kbd className="px-1 bg-muted rounded">Enter</kbd> to send
-          </p>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={openFilePicker}
-              disabled={disabled}
-              title="Attach images & files"
-              className="size-8"
-            >
-              <ImagePlus className="size-4" />
-            </Button>
-            {disabled && onCancel ? (
+        {!hideSendButton && (
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-muted-foreground">
+              Type <kbd className="px-1 bg-muted rounded">/</kbd> for commands
+              {!disableSubmitShortcut && (
+                <>
+                  <span className="mx-2">·</span>
+                  <kbd className="px-1 bg-muted rounded">
+                    {typeof navigator !== 'undefined' && navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}
+                  </kbd>
+                  +<kbd className="px-1 bg-muted rounded">Enter</kbd> to send
+                </>
+              )}
+            </p>
+            <div className="flex items-center gap-2">
               <Button
                 type="button"
-                size="sm"
-                variant="destructive"
-                onClick={onCancel}
+                variant="ghost"
+                size="icon"
+                onClick={openFilePicker}
+                disabled={disabled}
+                title="Attach images & files"
+                className="size-8"
               >
-                <Square className="size-4" />
-                Stop
+                <ImagePlus className="size-4" />
               </Button>
-            ) : (
-              <Button type="submit" disabled={disabled || !prompt.trim()} size="sm">
-                {disabled ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Running...
-                  </>
-                ) : (
-                  <>
-                    <Send className="size-4" />
-                    Send
-                  </>
-                )}
-              </Button>
-            )}
+              {disabled && onCancel ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="destructive"
+                  onClick={onCancel}
+                >
+                  <Square className="size-4" />
+                  Stop
+                </Button>
+              ) : (
+                <Button type="submit" disabled={disabled || !prompt.trim()} size="sm">
+                  {disabled ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Running...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="size-4" />
+                      Send
+                    </>
+                  )}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </form>
 
       {/* Hidden file input for Paperclip button */}

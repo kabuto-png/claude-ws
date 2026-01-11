@@ -2,11 +2,12 @@
 
 import { useDroppable } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Task, TaskStatus } from '@/types';
 import { TaskCard } from './task-card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useTaskStore } from '@/stores/task-store';
 
 interface ColumnProps {
   status: TaskStatus;
@@ -17,6 +18,7 @@ interface ColumnProps {
 }
 
 export function Column({ status, title, tasks, attemptCounts = new Map(), onCreateTask }: ColumnProps) {
+  const { deleteTasksByStatus } = useTaskStore();
   const { setNodeRef, isOver } = useDroppable({
     id: status,
     data: {
@@ -27,6 +29,17 @@ export function Column({ status, title, tasks, attemptCounts = new Map(), onCrea
 
   const taskIds = tasks.map((task) => task.id);
   const isTodoColumn = status === 'todo';
+  const isArchiveColumn = status === 'done' || status === 'cancelled';
+
+  const handleEmptyColumn = async () => {
+    if (tasks.length === 0) return;
+    if (!confirm(`Delete all ${tasks.length} task(s) from ${title}?`)) return;
+    try {
+      await deleteTasksByStatus(status);
+    } catch (error) {
+      console.error('Failed to empty column:', error);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full min-w-[280px] max-w-[320px]">
@@ -47,6 +60,17 @@ export function Column({ status, title, tasks, attemptCounts = new Map(), onCrea
               title="New task"
             >
               <Plus className="h-3 w-3" />
+            </Button>
+          )}
+          {isArchiveColumn && tasks.length > 0 && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-destructive"
+              onClick={handleEmptyColumn}
+              title={`Delete all ${tasks.length} task(s)`}
+            >
+              <Trash2 className="h-3 w-3" />
             </Button>
           )}
         </div>
