@@ -26,8 +26,9 @@ function KanbanApp() {
   // Auto-show setup when no projects
   const autoShowSetup = !projectLoading && projects.length === 0;
 
-  // Fetch projects on mount
+  // Rehydrate from localStorage and fetch projects on mount
   useEffect(() => {
+    useProjectStore.persist.rehydrate();
     fetchProjects();
   }, [fetchProjects]);
 

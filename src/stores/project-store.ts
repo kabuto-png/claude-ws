@@ -225,10 +225,7 @@ export const useProjectStore = create<ProjectStore>()(
         selectedProjectIds: state.selectedProjectIds,
         activeProjectId: state.activeProjectId,
       }),
-      merge: (persisted, current) => ({
-        ...current,
-        ...(persisted as Partial<ProjectState>),
-      }),
+      skipHydration: true,  // Manual hydration for Next.js SSR
     }
   )
 );
