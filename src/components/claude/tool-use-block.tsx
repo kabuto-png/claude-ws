@@ -14,14 +14,20 @@ import {
   ChevronRight,
   AlertCircle,
   Zap,
+  Loader2,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { DiffView } from './diff-view';
+import { Button } from '@/components/ui/button';
 
 interface ToolUseBlockProps {
   name: string;
   input?: unknown;
   result?: string;
   isError?: boolean;
+  isStreaming?: boolean;
   className?: string;
 }
 
@@ -42,77 +48,287 @@ function getToolIcon(name: string) {
   return icons[name] || FileText;
 }
 
+// Get active verb for tool (for streaming status)
+function getToolActiveVerb(name: string): string {
+  const verbs: Record<string, string> = {
+    Read: 'Reading',
+    Write: 'Writing',
+    Edit: 'Editing',
+    Bash: 'Running',
+    Grep: 'Searching',
+    Glob: 'Finding',
+    TodoWrite: 'Updating todos',
+    WebFetch: 'Fetching',
+    WebSearch: 'Searching web',
+    Skill: 'Executing',
+    Task: 'Delegating',
+  };
+  return verbs[name] || 'Processing';
+}
+
 // Get compact display text for tool
 function getToolDisplay(name: string, input: any): string {
   if (!input) return name;
 
   switch (name) {
     case 'Read':
-      return input.file_path || 'Reading file...';
+      return input.file_path || 'file...';
     case 'Write':
-      return input.file_path || 'Writing file...';
+      return input.file_path || 'file...';
     case 'Edit':
-      return input.file_path || 'Editing file...';
+      return input.file_path || 'file...';
     case 'Bash':
-      return input.description || input.command?.slice(0, 60) || 'Running command...';
+      return input.description || input.command?.slice(0, 80) || 'command...';
     case 'Grep':
-      return `Search: ${input.pattern || ''}`;
+      return `"${input.pattern || ''}"`;
     case 'Glob':
-      return `Find: ${input.pattern || ''}`;
+      return `${input.pattern || ''}`;
     case 'TodoWrite':
-      // Show summary of todo items
       if (input.todos && Array.isArray(input.todos)) {
         const inProgress = input.todos.filter((t: any) => t.status === 'in_progress');
         const pending = input.todos.filter((t: any) => t.status === 'pending');
         const completed = input.todos.filter((t: any) => t.status === 'completed');
-        return `TODO: ${completed.length}✓ ${inProgress.length}⟳ ${pending.length}○`;
+        return `${completed.length}✓ ${inProgress.length}⟳ ${pending.length}○`;
       }
-      return 'TODO list updated';
+      return 'list';
     case 'Skill':
-      // Show which skill is being used
-      return `Skill: ${input.skill || 'unknown'}`;
+      return input.skill || 'unknown';
     case 'WebFetch':
-      return input.url || 'Fetching...';
+      try {
+        const url = new URL(input.url);
+        return url.hostname + url.pathname.slice(0, 30);
+      } catch {
+        return input.url?.slice(0, 50) || 'url...';
+      }
     case 'WebSearch':
-      return `Search: ${input.query || ''}`;
+      return `"${input.query || ''}"`;
+    case 'Task':
+      return input.description || 'task...';
     default:
       return name;
   }
 }
 
-export function ToolUseBlock({ name, input, result, isError, className }: ToolUseBlockProps) {
+// Get result summary for completed tool calls (like "Read 81 lines")
+function getResultSummary(name: string, result?: string): string | null {
+  if (!result) return null;
+
+  switch (name) {
+    case 'Read': {
+      // Count lines from result (result is the file content)
+      const lines = result.split('\n').length;
+      return `${lines} lines`;
+    }
+    case 'Grep': {
+      // Try to extract match count
+      const matchCount = result.split('\n').filter(l => l.trim()).length;
+      if (matchCount === 0) return 'no matches';
+      return `${matchCount} match${matchCount !== 1 ? 'es' : ''}`;
+    }
+    case 'Glob': {
+      // Count files found
+      const files = result.split('\n').filter(l => l.trim()).length;
+      if (files === 0) return 'no files';
+      return `${files} file${files !== 1 ? 's' : ''}`;
+    }
+    case 'Task': {
+      // Show completion status
+      if (result.includes('completed')) return 'completed';
+      return null;
+    }
+    case 'Write':
+      return 'written';
+    case 'Edit':
+      return 'edited';
+    default:
+      return null;
+  }
+}
+
+// Bash command block component
+function BashBlock({ command, output, isError }: { command: string; output?: string; isError?: boolean }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    await navigator.clipboard.writeText(command);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const hasOutput = output && output.trim().length > 0;
+  const outputLines = output?.split('\n').length || 0;
+
+  return (
+    <div className="rounded-md border border-border overflow-hidden text-xs font-mono">
+      {/* Command header */}
+      <div
+        className={cn(
+          'flex items-center gap-2 px-3 py-2 bg-zinc-900 dark:bg-zinc-950',
+          hasOutput && 'cursor-pointer hover:bg-zinc-800 dark:hover:bg-zinc-900'
+        )}
+        onClick={() => hasOutput && setIsExpanded(!isExpanded)}
+      >
+        <Terminal className="size-3.5 text-zinc-400 shrink-0" />
+        <code className="text-zinc-100 flex-1 truncate">{command}</code>
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={handleCopy}
+            className="size-5 text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700"
+          >
+            {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
+          </Button>
+          {hasOutput && (
+            <span className="text-zinc-500 text-[10px]">
+              {outputLines} line{outputLines !== 1 ? 's' : ''}
+            </span>
+          )}
+          {hasOutput && (
+            isExpanded ? (
+              <ChevronDown className="size-3 text-zinc-500" />
+            ) : (
+              <ChevronRight className="size-3 text-zinc-500" />
+            )
+          )}
+        </div>
+      </div>
+
+      {/* Output */}
+      {isExpanded && hasOutput && (
+        <div className={cn(
+          'px-3 py-2 bg-zinc-950 dark:bg-black max-h-48 overflow-auto',
+          isError && 'text-red-400'
+        )}>
+          <pre className="text-zinc-300 whitespace-pre-wrap break-all text-[11px] leading-relaxed">
+            {output}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Edit tool diff display
+function EditBlock({ input, result, isError }: { input: any; result?: string; isError?: boolean }) {
+  if (!input?.old_string && !input?.new_string) {
+    return null;
+  }
+
+  return (
+    <DiffView
+      oldText={input.old_string || ''}
+      newText={input.new_string || ''}
+      filePath={input.file_path}
+    />
+  );
+}
+
+export function ToolUseBlock({ name, input, result, isError, isStreaming, className }: ToolUseBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const Icon = getToolIcon(name);
   const displayText = getToolDisplay(name, input);
+  const activeVerb = getToolActiveVerb(name);
+  const resultSummary = getResultSummary(name, result);
   const inputObj = input as Record<string, unknown> | null | undefined;
-  const hasDetails = result || (inputObj && Object.keys(inputObj).length > 1);
 
-  // Simple inline display for most tools
+  // Determine if we have special display modes
+  const isBash = name === 'Bash';
+  const isEdit = name === 'Edit';
+  const hasEditDiff = isEdit && Boolean(inputObj?.old_string) && Boolean(inputObj?.new_string);
+
+  // For bash and edit with diff, we show expanded content differently
+  const showSpecialView = isBash || hasEditDiff;
+
+  // For other tools, check if we have expandable details
+  const hasOtherDetails = !showSpecialView && Boolean(result || (inputObj && Object.keys(inputObj).length > 1));
+
+  // Completed tool with result - show in green like CLI
+  const isCompleted = !isStreaming && result && !isError;
+
   return (
     <div className={cn('group max-w-full overflow-hidden', className)}>
+      {/* Main status line */}
       <div
         className={cn(
-          'flex items-center gap-2 py-1 text-sm text-muted-foreground min-w-0',
-          hasDetails && 'cursor-pointer hover:text-foreground'
+          'flex items-start gap-2 py-0.5 text-sm min-w-0',
+          isStreaming ? 'text-foreground' : 'text-muted-foreground',
+          hasOtherDetails && 'cursor-pointer hover:text-foreground'
         )}
-        onClick={() => hasDetails && setIsExpanded(!isExpanded)}
+        onClick={() => hasOtherDetails && setIsExpanded(!isExpanded)}
       >
-        {hasDetails && (
+        {/* Completed indicator or expand/collapse */}
+        {isCompleted && !hasOtherDetails ? (
+          <span className="text-green-600 dark:text-green-500 shrink-0 mt-0.5">●</span>
+        ) : hasOtherDetails ? (
           isExpanded ? (
-            <ChevronDown className="size-3 shrink-0" />
+            <ChevronDown className="size-3 shrink-0 mt-1" />
           ) : (
-            <ChevronRight className="size-3 shrink-0" />
+            <ChevronRight className="size-3 shrink-0 mt-1" />
           )
+        ) : null}
+
+        {/* Streaming spinner or icon */}
+        {isStreaming ? (
+          <Loader2 className="size-4 shrink-0 animate-spin text-primary mt-0.5" />
+        ) : isCompleted ? null : (
+          <Icon className={cn('size-4 shrink-0 mt-0.5', isError && 'text-destructive')} />
         )}
-        <Icon className={cn('size-4 shrink-0', isError && 'text-destructive')} />
-        <span className={cn('font-mono text-[13px] truncate min-w-0', isError && 'text-destructive')}>
-          {displayText}
+
+        {/* Tool name and target - allow wrapping */}
+        <span className={cn('font-mono text-[13px] min-w-0 flex-1', isError && 'text-destructive')}>
+          {isStreaming ? (
+            <>
+              {activeVerb} <span className="text-muted-foreground break-all">{displayText}</span>...
+            </>
+          ) : isCompleted ? (
+            <>
+              <span className="font-semibold text-foreground">{name}</span>
+              <span className="text-muted-foreground">(</span>
+              <span className="text-foreground break-all">{displayText}</span>
+              <span className="text-muted-foreground">)</span>
+              {/* Result summary inline after parens */}
+              {resultSummary && (
+                <span className="text-muted-foreground text-xs ml-1">({resultSummary})</span>
+              )}
+            </>
+          ) : (
+            displayText
+          )}
         </span>
-        {isError && <AlertCircle className="size-3 text-destructive shrink-0" />}
+
+        {/* Result summary for non-completed (streaming shows here) */}
+        {resultSummary && !isStreaming && !isCompleted && (
+          <span className="text-muted-foreground text-xs shrink-0">
+            ({resultSummary})
+          </span>
+        )}
+
+        {isError && <AlertCircle className="size-3 text-destructive shrink-0 mt-1" />}
       </div>
 
-      {/* Expandable details */}
-      {isExpanded && hasDetails && (
+      {/* Special view for Bash */}
+      {isBash && Boolean(inputObj?.command) && (
+        <div className="mt-1.5 ml-5">
+          <BashBlock
+            command={String(inputObj?.command)}
+            output={result}
+            isError={isError}
+          />
+        </div>
+      )}
+
+      {/* Special view for Edit with diff */}
+      {hasEditDiff && (
+        <div className="mt-1.5 ml-5">
+          <EditBlock input={inputObj} result={result} isError={isError} />
+        </div>
+      )}
+
+      {/* Standard expandable details for other tools */}
+      {isExpanded && hasOtherDetails && (
         <div className="ml-5 mt-1 pl-4 border-l border-border/50 text-xs text-muted-foreground space-y-2 max-w-full overflow-hidden">
           {inputObj && Object.keys(inputObj).length > 1 && (
             <pre className="font-mono bg-muted/30 p-2 rounded overflow-x-auto max-h-32 whitespace-pre-wrap break-all">
@@ -124,8 +340,8 @@ export function ToolUseBlock({ name, input, result, isError, className }: ToolUs
               'font-mono bg-muted/30 p-2 rounded overflow-x-auto max-h-40 whitespace-pre-wrap break-all',
               isError && 'text-destructive'
             )}>
-              {result.slice(0, 300)}
-              {result.length > 300 && '...'}
+              {result.slice(0, 500)}
+              {result.length > 500 && '...'}
             </pre>
           )}
         </div>

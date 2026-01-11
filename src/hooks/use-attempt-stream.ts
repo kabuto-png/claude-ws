@@ -31,7 +31,8 @@ interface ActiveQuestion {
 interface UseAttemptStreamResult {
   messages: ClaudeOutput[];
   isConnected: boolean;
-  startAttempt: (taskId: string, prompt: string, displayPrompt?: string) => void;
+  startAttempt: (taskId: string, prompt: string, displayPrompt?: string, fileIds?: string[]) => void;
+  cancelAttempt: () => void;
   currentAttemptId: string | null;
   currentPrompt: string | null;
   isRunning: boolean;
@@ -69,6 +70,24 @@ export function useAttemptStream(
     socketInstance.on('connect', () => {
       console.log('Attempt stream socket connected:', socketInstance.id);
       setIsConnected(true);
+      // Re-subscribe to current attempt room on reconnect and check status
+      setCurrentAttemptId((currentId) => {
+        if (currentId) {
+          console.log('[useAttemptStream] Re-subscribing to attempt on reconnect:', currentId);
+          socketInstance.emit('attempt:subscribe', { attemptId: currentId });
+          // Also check if attempt is still running (might have finished while disconnected)
+          fetch(`/api/attempts/${currentId}/status`)
+            .then(res => res.json())
+            .then(data => {
+              if (data.status && data.status !== 'running') {
+                console.log('[useAttemptStream] Attempt finished while disconnected:', data.status);
+                setIsRunning(false);
+              }
+            })
+            .catch(() => {}); // Ignore errors
+        }
+        return currentId;
+      });
     });
 
     socketInstance.on('disconnect', () => {
@@ -85,17 +104,52 @@ export function useAttemptStream(
       console.log('[useAttemptStream] Received output:json', data.attemptId, data.data?.type);
       setCurrentAttemptId((currentId) => {
         if (data.attemptId === currentId) {
+          // Check for 'result' type which indicates completion
+          if (data.data.type === 'result') {
+            console.log('[useAttemptStream] Received result message, stopping');
+            setIsRunning(false);
+          }
+
           setMessages((prev) => {
-            // For 'assistant' messages, replace the last one instead of appending
-            // This prevents duplication since assistant messages contain accumulated content
+            // For 'assistant' messages, replace last one (accumulated content)
+            // We render tool_use directly from assistant.content to preserve order
             if (data.data.type === 'assistant') {
-              const lastIndex = prev.findLastIndex((m) => m.type === 'assistant');
-              if (lastIndex >= 0) {
+              const lastAssistantIndex = prev.findLastIndex((m) => m.type === 'assistant');
+              if (lastAssistantIndex >= 0) {
                 const newMessages = [...prev];
-                newMessages[lastIndex] = data.data;
+                newMessages[lastAssistantIndex] = data.data;
                 return newMessages;
               }
+              return [...prev, data.data];
             }
+
+            // For 'user' messages with tool_result content, extract and add as tool_result
+            if (data.data.type === 'user' && data.data.message?.content) {
+              const newMessages = [...prev];
+              for (const block of data.data.message.content) {
+                if (block.type === 'tool_result') {
+                  const toolUseId = (block as { tool_use_id?: string }).tool_use_id;
+                  // Check if we already have this result
+                  const existingIndex = newMessages.findIndex(
+                    (m) => m.type === 'tool_result' && m.tool_data?.tool_use_id === toolUseId
+                  );
+                  const resultMsg: ClaudeOutput = {
+                    type: 'tool_result',
+                    tool_data: { tool_use_id: toolUseId },
+                    result: (block as { content?: string }).content || '',
+                    is_error: (block as { is_error?: boolean }).is_error || false,
+                  };
+                  if (existingIndex >= 0) {
+                    newMessages[existingIndex] = resultMsg;
+                  } else {
+                    newMessages.push(resultMsg);
+                  }
+                }
+              }
+              return newMessages;
+            }
+
+            // For other message types, just append
             return [...prev, data.data];
           });
         }
@@ -163,16 +217,59 @@ export function useAttemptStream(
         if (!res.ok) return;
 
         const data = await res.json();
-        if (data.attempt && data.attempt.status === 'running') {
-          console.log('[useAttemptStream] Found running attempt:', data.attempt.id);
-          currentTaskIdRef.current = taskId;
-          setCurrentAttemptId(data.attempt.id);
-          setCurrentPrompt(data.attempt.prompt);
-          setMessages(data.messages || []);
-          setIsRunning(true);
+        if (data.attempt) {
+          if (data.attempt.status === 'running') {
+            console.log('[useAttemptStream] Found running attempt:', data.attempt.id);
 
-          // Subscribe to this attempt's output
-          socketRef.current?.emit('attempt:subscribe', { attemptId: data.attempt.id });
+            // Check if messages contain a 'result' type (indicates completion)
+            const hasResultMessage = (data.messages || []).some(
+              (msg: ClaudeOutput) => msg.type === 'result'
+            );
+
+            if (hasResultMessage) {
+              // Attempt actually finished but status wasn't updated - fix it
+              console.log('[useAttemptStream] Attempt has result message, marking as not running');
+              setIsRunning(false);
+              // Also verify with status endpoint
+              fetch(`/api/attempts/${data.attempt.id}/status`)
+                .then(r => r.json())
+                .then(s => {
+                  if (s.status !== 'running') {
+                    console.log('[useAttemptStream] Status confirmed not running:', s.status);
+                  }
+                })
+                .catch(() => {});
+              return;
+            }
+
+            currentTaskIdRef.current = taskId;
+            setCurrentAttemptId(data.attempt.id);
+            setCurrentPrompt(data.attempt.prompt);
+            setMessages(data.messages || []);
+            setIsRunning(true);
+
+            // Subscribe to this attempt's output
+            socketRef.current?.emit('attempt:subscribe', { attemptId: data.attempt.id });
+
+            // Double-check status after a short delay (in case process exited but status not updated)
+            setTimeout(async () => {
+              try {
+                const statusRes = await fetch(`/api/attempts/${data.attempt.id}/status`);
+                const statusData = await statusRes.json();
+                if (statusData.status && statusData.status !== 'running') {
+                  console.log('[useAttemptStream] Delayed status check: not running', statusData.status);
+                  setIsRunning(false);
+                }
+              } catch {}
+            }, 2000);
+          } else {
+            // Attempt is no longer running - ensure UI reflects this
+            console.log('[useAttemptStream] Attempt not running, status:', data.attempt.status);
+            setIsRunning(false);
+          }
+        } else {
+          // No running attempt
+          setIsRunning(false);
         }
       } catch (error) {
         console.error('Failed to check running attempt:', error);
@@ -183,14 +280,14 @@ export function useAttemptStream(
   }, [taskId, isConnected]);
 
   const startAttempt = useCallback(
-    (taskId: string, prompt: string, displayPrompt?: string) => {
+    (taskId: string, prompt: string, displayPrompt?: string, fileIds?: string[]) => {
       const socket = socketRef.current;
       if (!socket || !isConnected) {
         console.error('Socket not connected, cannot start attempt');
         return;
       }
 
-      console.log('Starting attempt for task:', taskId);
+      console.log('Starting attempt for task:', taskId, fileIds ? `with ${fileIds.length} files` : '');
       currentTaskIdRef.current = taskId;
       setMessages([]);
       setCurrentPrompt(displayPrompt || prompt);
@@ -204,7 +301,7 @@ export function useAttemptStream(
         socket.emit('attempt:subscribe', { attemptId: data.attemptId });
       });
 
-      socket.emit('attempt:start', { taskId, prompt, displayPrompt });
+      socket.emit('attempt:start', { taskId, prompt, displayPrompt, fileIds });
     },
     [isConnected]
   );
@@ -238,10 +335,22 @@ export function useAttemptStream(
     setActiveQuestion(null);
   }, [activeQuestion]);
 
+  // Cancel/stop the current running attempt
+  const cancelAttempt = useCallback(() => {
+    const socket = socketRef.current;
+    if (!socket || !currentAttemptId) return;
+
+    console.log('[useAttemptStream] Cancelling attempt:', currentAttemptId);
+    socket.emit('attempt:cancel', { attemptId: currentAttemptId });
+    setIsRunning(false);
+    setActiveQuestion(null);
+  }, [currentAttemptId]);
+
   return {
     messages,
     isConnected,
     startAttempt,
+    cancelAttempt,
     currentAttemptId,
     currentPrompt,
     isRunning,

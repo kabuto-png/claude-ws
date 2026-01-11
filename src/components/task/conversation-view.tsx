@@ -1,12 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { Loader2, FileText } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageBlock } from '@/components/claude/message-block';
 import { ToolUseBlock } from '@/components/claude/tool-use-block';
 import { cn } from '@/lib/utils';
-import type { ClaudeOutput, ClaudeContentBlock } from '@/types';
+import type { ClaudeOutput, ClaudeContentBlock, AttemptFile, PendingFile } from '@/types';
 
 interface ConversationTurn {
   type: 'user' | 'assistant';
@@ -14,6 +14,7 @@ interface ConversationTurn {
   messages: ClaudeOutput[];
   attemptId: string;
   timestamp: number;
+  files?: AttemptFile[];
 }
 
 interface ConversationViewProps {
@@ -21,8 +22,44 @@ interface ConversationViewProps {
   currentMessages: ClaudeOutput[];
   currentAttemptId: string | null;
   currentPrompt?: string;
+  currentFiles?: PendingFile[];
   isRunning: boolean;
   className?: string;
+}
+
+// Build a map of tool results from messages
+function buildToolResultsMap(messages: ClaudeOutput[]): Map<string, { result: string; isError: boolean }> {
+  const map = new Map<string, { result: string; isError: boolean }>();
+  for (const msg of messages) {
+    // Tool result messages have tool_data.tool_use_id that references the tool_use
+    if (msg.type === 'tool_result') {
+      // Try multiple paths for tool_use_id
+      const toolUseId = (msg.tool_data?.tool_use_id as string) || (msg.tool_data?.id as string);
+      if (toolUseId) {
+        map.set(toolUseId, {
+          result: msg.result || '',
+          isError: msg.is_error || false,
+        });
+      }
+    }
+  }
+  return map;
+}
+
+// Find if this is the last tool_use in the message stream (still executing)
+function isToolExecuting(
+  toolId: string,
+  allBlocks: ClaudeContentBlock[],
+  toolResultsMap: Map<string, { result: string; isError: boolean }>,
+  isStreaming: boolean
+): boolean {
+  if (!isStreaming) return false;
+  // If we have a result, it's not executing
+  if (toolResultsMap.has(toolId)) return false;
+  // Find if this is the last tool_use block
+  const toolUseBlocks = allBlocks.filter(b => b.type === 'tool_use');
+  const lastToolUse = toolUseBlocks[toolUseBlocks.length - 1];
+  return lastToolUse?.id === toolId;
 }
 
 export function ConversationView({
@@ -30,6 +67,7 @@ export function ConversationView({
   currentMessages,
   currentAttemptId,
   currentPrompt,
+  currentFiles,
   isRunning,
   className,
 }: ConversationViewProps) {
@@ -71,7 +109,13 @@ export function ConversationView({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentMessages, historicalTurns]);
 
-  const renderContentBlock = (block: ClaudeContentBlock, index: number) => {
+  const renderContentBlock = (
+    block: ClaudeContentBlock,
+    index: number,
+    allBlocks: ClaudeContentBlock[],
+    toolResultsMap: Map<string, { result: string; isError: boolean }>,
+    isStreaming: boolean
+  ) => {
     if (block.type === 'text' && block.text) {
       return <MessageBlock key={index} content={block.text} />;
     }
@@ -81,11 +125,18 @@ export function ConversationView({
     }
 
     if (block.type === 'tool_use') {
+      const toolId = block.id || '';
+      const toolResult = toolResultsMap.get(toolId);
+      const executing = isToolExecuting(toolId, allBlocks, toolResultsMap, isStreaming);
+
       return (
         <ToolUseBlock
           key={index}
           name={block.name || 'Unknown'}
           input={block.input}
+          result={toolResult?.result}
+          isError={toolResult?.isError}
+          isStreaming={executing}
         />
       );
     }
@@ -93,38 +144,84 @@ export function ConversationView({
     return null;
   };
 
-  const renderMessage = (output: ClaudeOutput, index: number, isStreaming: boolean) => {
-    // Handle assistant messages with content blocks
+  const renderMessage = (
+    output: ClaudeOutput,
+    index: number,
+    isStreaming: boolean,
+    allMessages: ClaudeOutput[]
+  ) => {
+    const toolResultsMap = buildToolResultsMap(allMessages);
+
+    // Handle assistant messages - render ALL content blocks in order (text, thinking, tool_use)
+    // This preserves the natural order of Claude's response
     if (output.type === 'assistant' && output.message?.content) {
+      const blocks = output.message.content;
+
       return (
         <div key={index} className="space-y-1 max-w-full overflow-hidden">
-          {output.message.content.map((block, blockIndex) =>
-            renderContentBlock(block, blockIndex)
+          {blocks.map((block, blockIndex) =>
+            renderContentBlock(block, blockIndex, blocks, toolResultsMap, isStreaming)
           )}
         </div>
       );
     }
 
-    // Skip all other event types during streaming since they're duplicates
-    // of content that will appear in assistant messages
-    if (output.type === 'tool_use' || output.type === 'tool_result' || output.type === 'stream_event') {
+    // Skip tool_result, stream_event, user (tool results are matched via toolResultsMap)
+    if (output.type === 'tool_result' || output.type === 'stream_event' || output.type === 'user') {
       return null;
     }
 
     return null;
   };
 
-  // User prompt - simple muted box
+  // Check if file is an image
+  const isImage = (mimeType: string) => mimeType.startsWith('image/');
+
+  // User prompt - simple muted box with file thumbnails
   const renderUserTurn = (turn: ConversationTurn) => (
-    <div key={`user-${turn.attemptId}`} className="bg-muted/50 rounded px-3 py-2 text-sm break-words">
-      {turn.prompt}
+    <div key={`user-${turn.attemptId}`} className="bg-muted/50 rounded px-3 py-2 text-sm break-words space-y-2">
+      <div>{turn.prompt}</div>
+      {turn.files && turn.files.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {turn.files.map((file) => (
+            isImage(file.mimeType) ? (
+              <a
+                key={file.id}
+                href={`/api/uploads/${file.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                <img
+                  src={`/api/uploads/${file.id}`}
+                  alt={file.originalName}
+                  className="h-16 w-auto rounded border border-border hover:border-primary transition-colors"
+                  title={file.originalName}
+                />
+              </a>
+            ) : (
+              <a
+                key={file.id}
+                href={`/api/uploads/${file.id}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 px-2 py-1 bg-background rounded border border-border hover:border-primary transition-colors text-xs"
+                title={file.originalName}
+              >
+                <FileText className="size-3" />
+                <span className="max-w-[100px] truncate">{file.originalName}</span>
+              </a>
+            )
+          ))}
+        </div>
+      )}
     </div>
   );
 
   // Assistant response - clean text flow
   const renderAssistantTurn = (turn: ConversationTurn) => (
     <div key={`assistant-${turn.attemptId}`} className="space-y-1 max-w-full overflow-hidden">
-      {turn.messages.map((msg, idx) => renderMessage(msg, idx, false))}
+      {turn.messages.map((msg, idx) => renderMessage(msg, idx, false, turn.messages))}
     </div>
   );
 
@@ -163,33 +260,57 @@ export function ConversationView({
         {/* Historical turns */}
         {historicalTurns.map(renderTurn)}
 
-        {/* Current streaming messages */}
-        {currentAttemptId && (currentMessages.length > 0 || isRunning) && (
+        {/* Current streaming messages - only show if not already in history */}
+        {currentAttemptId && (currentMessages.length > 0 || isRunning) &&
+         !historicalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'assistant') && (
           <>
             {/* User prompt if not in history */}
             {!historicalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'user') && currentPrompt && (
-              <div className="bg-muted/50 rounded px-3 py-2 text-sm">
-                {currentPrompt}
+              <div className="bg-muted/50 rounded px-3 py-2 text-sm break-words space-y-2">
+                <div>{currentPrompt}</div>
+                {currentFiles && currentFiles.length > 0 && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {currentFiles.map((file) => {
+                      // Use previewUrl (blob URL) for immediate display - it stays valid
+                      // since we don't revoke it until page reload
+                      const imgSrc = file.previewUrl;
+
+                      return isImage(file.mimeType) ? (
+                        <img
+                          key={file.tempId}
+                          src={imgSrc}
+                          alt={file.originalName}
+                          className="h-16 w-auto rounded border border-border"
+                          title={file.originalName}
+                        />
+                      ) : (
+                        <div
+                          key={file.tempId}
+                          className="flex items-center gap-1 px-2 py-1 bg-background rounded border border-border text-xs"
+                          title={file.originalName}
+                        >
+                          <FileText className="size-3" />
+                          <span className="max-w-[100px] truncate">{file.originalName}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
             {/* Streaming response */}
             <div className="space-y-1 max-w-full overflow-hidden">
-              {currentMessages.map((msg, idx) => renderMessage(msg, idx, true))}
-              {isRunning && (
-                <div className="flex items-center gap-2 text-muted-foreground text-sm">
-                  <Loader2 className="size-3 animate-spin" />
-                  <span>Generating...</span>
-                </div>
-              )}
+              {currentMessages.map((msg, idx) => renderMessage(msg, idx, true, currentMessages))}
             </div>
           </>
         )}
 
-        {/* Initial loading state */}
-        {isRunning && currentMessages.length === 0 && (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm">
-            <Loader2 className="size-3 animate-spin" />
-            <span>Thinking...</span>
+        {/* Initial loading state - only show when waiting for first response */}
+        {isRunning && currentMessages.length === 0 &&
+         !historicalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'assistant') && (
+          <div className="flex items-center gap-2 text-muted-foreground text-sm py-1">
+            <Loader2 className="size-4 animate-spin text-primary" />
+            <span className="font-mono text-[13px]">Thinking...</span>
           </div>
         )}
 
