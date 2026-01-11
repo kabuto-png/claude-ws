@@ -12,8 +12,9 @@ import { InteractiveCommandOverlay, QuestionPrompt } from './interactive-command
 import { useTaskStore } from '@/stores/task-store';
 import { useAttemptStream } from '@/hooks/use-attempt-stream';
 import { useInteractiveCommandStore } from '@/stores/interactive-command-store';
+import { useAttachmentStore } from '@/stores/attachment-store';
 import { cn } from '@/lib/utils';
-import type { TaskStatus } from '@/types';
+import type { TaskStatus, PendingFile } from '@/types';
 
 const MIN_WIDTH = 400;
 const MAX_WIDTH = 800;
@@ -34,9 +35,11 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; variant: 'default' | 's
 
 export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
   const { selectedTask, setSelectedTask, updateTaskStatus } = useTaskStore();
+  const { getPendingFiles } = useAttachmentStore();
   const [conversationKey, setConversationKey] = useState(0);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
+  const [currentAttemptFiles, setCurrentAttemptFiles] = useState<PendingFile[]>([]);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Load saved width
@@ -97,6 +100,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
   const {
     messages,
     startAttempt,
+    cancelAttempt,
     isRunning,
     isConnected,
     currentAttemptId,
@@ -119,8 +123,11 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
     setSelectedTask(null);
   };
 
-  const handlePromptSubmit = (prompt: string, displayPrompt?: string) => {
-    startAttempt(selectedTask.id, prompt, displayPrompt);
+  const handlePromptSubmit = (prompt: string, displayPrompt?: string, fileIds?: string[]) => {
+    // Capture pending files before they get cleared
+    const pendingFiles = getPendingFiles(selectedTask.id);
+    setCurrentAttemptFiles(pendingFiles);
+    startAttempt(selectedTask.id, prompt, displayPrompt, fileIds);
   };
 
   const handleRefreshConversation = () => {
@@ -195,6 +202,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
           currentMessages={messages}
           currentAttemptId={currentAttemptId}
           currentPrompt={currentPrompt || undefined}
+          currentFiles={isRunning ? currentAttemptFiles : undefined}
           isRunning={isRunning}
         />
       </div>
@@ -221,7 +229,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
           </div>
         ) : (
           <div className="p-4">
-            <PromptInput onSubmit={handlePromptSubmit} disabled={isRunning} taskId={selectedTask.id} />
+            <PromptInput onSubmit={handlePromptSubmit} onCancel={cancelAttempt} disabled={isRunning} taskId={selectedTask.id} />
             <InteractiveCommandOverlay />
           </div>
         )}
