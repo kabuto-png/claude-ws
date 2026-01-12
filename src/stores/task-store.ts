@@ -16,6 +16,7 @@ interface TaskStore {
   selectTask: (id: string | null) => void;
   setSelectedTask: (task: Task | null) => void;
   setCreatingTask: (isCreating: boolean) => void;
+  setTaskChatInit: (taskId: string, chatInit: boolean) => Promise<void>;
 
   // API calls
   fetchTasks: (projectIds: string[]) => Promise<void>;
@@ -182,6 +183,34 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
       }
     } catch (error) {
       console.error('Error updating task status:', error);
+    }
+  },
+
+  setTaskChatInit: async (taskId: string, chatInit: boolean) => {
+    // Optimistic update
+    get().updateTask(taskId, { chatInit });
+
+    // Update selectedTask if it's the same task
+    const selected = get().selectedTask;
+    if (selected?.id === taskId) {
+      set({ selectedTask: { ...selected, chatInit } });
+    }
+
+    try {
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chatInit }),
+      });
+      if (!res.ok) throw new Error('Failed to update task chatInit');
+    } catch (error) {
+      console.error('Error updating task chatInit:', error);
+      // Revert on failure
+      get().updateTask(taskId, { chatInit: !chatInit });
+      const selected = get().selectedTask;
+      if (selected?.id === taskId) {
+        set({ selectedTask: { ...selected, chatInit: !chatInit } });
+      }
     }
   },
 }));

@@ -25,6 +25,7 @@ interface ConversationViewProps {
   currentFiles?: PendingFile[];
   isRunning: boolean;
   className?: string;
+  onHistoryLoaded?: (hasHistory: boolean) => void;
 }
 
 // Build a map of tool results from messages
@@ -71,10 +72,18 @@ export function ConversationView({
   isRunning,
   className,
 }: ConversationViewProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
   const [historicalTurns, setHistoricalTurns] = useState<ConversationTurn[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastIsRunning, setLastIsRunning] = useState(isRunning);
+
+  // Scroll to bottom of scroll area viewport
+  const scrollToBottom = () => {
+    const viewport = scrollAreaRef.current?.querySelector('[data-slot="scroll-area-viewport"]');
+    if (viewport) {
+      viewport.scrollTop = viewport.scrollHeight;
+    }
+  };
 
   // Load historical conversation
   const loadHistory = async () => {
@@ -106,8 +115,8 @@ export function ConversationView({
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [currentMessages, historicalTurns]);
+    scrollToBottom();
+  }, [currentMessages, historicalTurns, isRunning]);
 
   const renderContentBlock = (
     block: ClaudeContentBlock,
@@ -255,8 +264,8 @@ export function ConversationView({
   }
 
   return (
-    <ScrollArea className={cn('h-full', className)}>
-      <div className="space-y-3 p-4 max-w-full overflow-hidden">
+    <ScrollArea ref={scrollAreaRef} className={cn('h-full', className)}>
+      <div className="space-y-3 p-4 pb-24 max-w-full overflow-hidden">
         {/* Historical turns */}
         {historicalTurns.map(renderTurn)}
 
@@ -313,8 +322,6 @@ export function ConversationView({
             <span className="font-mono text-[13px]">Thinking...</span>
           </div>
         )}
-
-        <div ref={bottomRef} />
       </div>
     </ScrollArea>
   );

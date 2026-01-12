@@ -1,73 +1,55 @@
 'use client';
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import { io, type Socket } from 'socket.io-client';
+import { useEffect, useState } from 'react';
+import { io, Socket } from 'socket.io-client';
+import { useRunningTasksStore } from '@/stores/running-tasks-store';
 
-interface SocketContextValue {
-  socket: Socket | null;
-  isConnected: boolean;
-}
-
-const SocketContext = createContext<SocketContextValue>({
-  socket: null,
-  isConnected: false,
-});
-
-export function useSocketContext() {
-  const context = useContext(SocketContext);
-  if (!context) {
-    throw new Error('useSocketContext must be used within SocketProvider');
-  }
-  return context;
-}
-
-interface SocketProviderProps {
-  children: ReactNode;
-}
-
-export function SocketProvider({ children }: SocketProviderProps) {
-  const socketRef = useRef<Socket | null>(null);
-  const [isConnected, setIsConnected] = useState(false);
+/**
+ * Global socket provider that listens for task status updates
+ * This ensures task cards show correct status even when task isn't opened
+ */
+export function SocketProvider({ children }: { children: React.ReactNode }) {
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const { addRunningTask, removeRunningTask, markTaskCompleted } = useRunningTasksStore();
 
   useEffect(() => {
-    // Initialize socket connection
-    const socket = io({
+    const socketInstance = io({
       reconnection: true,
       reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: Infinity,
     });
 
-    socketRef.current = socket;
-
-    socket.on('connect', () => {
-      console.log('Socket connected:', socket.id);
-      setIsConnected(true);
+    socketInstance.on('connect', () => {
+      console.log('[SocketProvider] Connected:', socketInstance.id);
+      setSocket(socketInstance);
     });
 
-    socket.on('disconnect', () => {
-      console.log('Socket disconnected');
-      setIsConnected(false);
+    socketInstance.on('disconnect', () => {
+      console.log('[SocketProvider] Disconnected');
     });
 
-    socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error);
+    socketInstance.on('connect_error', (err) => {
+      console.error('[SocketProvider] Connect error:', err);
     });
 
-    socket.on('error', (error) => {
-      console.error('Socket error:', error);
+    // Global: Listen for any task starting
+    socketInstance.on('task:started', (data: { taskId: string }) => {
+      console.log('[SocketProvider] Task started:', data.taskId);
+      addRunningTask(data.taskId);
     });
 
-    // Cleanup on unmount
+    // Global: Listen for any task finishing
+    socketInstance.on('task:finished', (data: { taskId: string; status: string }) => {
+      console.log('[SocketProvider] Task finished:', data.taskId, data.status);
+      removeRunningTask(data.taskId);
+      if (data.status === 'completed') {
+        markTaskCompleted(data.taskId);
+      }
+    });
+
     return () => {
-      socket.disconnect();
-      socketRef.current = null;
+      socketInstance.disconnect();
     };
-  }, []);
+  }, [addRunningTask, removeRunningTask, markTaskCompleted]);
 
-  return (
-    <SocketContext.Provider value={{ socket: socketRef.current, isConnected }}>
-      {children}
-    </SocketContext.Provider>
-  );
+  return <>{children}</>;
 }

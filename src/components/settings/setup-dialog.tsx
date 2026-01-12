@@ -258,7 +258,6 @@ export function SetupDialog({ open, onOpenChange }: SetupDialogProps) {
         open={folderBrowserOpen}
         onOpenChange={setFolderBrowserOpen}
         onSelect={handleFolderSelect}
-        initialPath={path || undefined}
       />
     </>
   );

@@ -55,7 +55,7 @@ export function useAttemptStream(
   const [currentPrompt, setCurrentPrompt] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [activeQuestion, setActiveQuestion] = useState<ActiveQuestion | null>(null);
-  const { addRunningTask, removeRunningTask } = useRunningTasksStore();
+  const { addRunningTask, removeRunningTask, markTaskCompleted } = useRunningTasksStore();
 
   // Keep callback ref updated
   onCompleteRef.current = options?.onComplete;
@@ -84,6 +84,9 @@ export function useAttemptStream(
               if (data.status && data.status !== 'running') {
                 console.log('[useAttemptStream] Attempt finished while disconnected:', data.status);
                 setIsRunning(false);
+                if (currentTaskIdRef.current) {
+                  removeRunningTask(currentTaskIdRef.current);
+                }
               }
             })
             .catch(() => {}); // Ignore errors
@@ -99,6 +102,21 @@ export function useAttemptStream(
 
     socketInstance.on('connect_error', (err) => {
       console.error('Socket connect error:', err);
+    });
+
+    // Global: Listen for any task starting (for green dot indicator on cards)
+    socketInstance.on('task:started', (data: { taskId: string }) => {
+      console.log('[useAttemptStream] Global: Task started:', data.taskId);
+      addRunningTask(data.taskId);
+    });
+
+    // Global: Listen for any task finishing (for green tick indicator on cards)
+    socketInstance.on('task:finished', (data: { taskId: string; status: string }) => {
+      console.log('[useAttemptStream] Global: Task finished:', data.taskId, data.status);
+      removeRunningTask(data.taskId);
+      if (data.status === 'completed') {
+        markTaskCompleted(data.taskId);
+      }
     });
 
     // Listen for JSON output from Claude
@@ -180,6 +198,9 @@ export function useAttemptStream(
           setIsRunning(false);
           if (currentTaskIdRef.current) {
             removeRunningTask(currentTaskIdRef.current);
+            if (data.status === 'completed') {
+              markTaskCompleted(currentTaskIdRef.current);
+            }
           }
           // Call onComplete callback with taskId
           if (currentTaskIdRef.current && data.status === 'completed') {
@@ -241,6 +262,7 @@ export function useAttemptStream(
               // Attempt actually finished but status wasn't updated - fix it
               console.log('[useAttemptStream] Attempt has result message, marking as not running');
               setIsRunning(false);
+              removeRunningTask(taskId);
               // Also verify with status endpoint
               fetch(`/api/attempts/${data.attempt.id}/status`)
                 .then(r => r.json())
@@ -271,6 +293,7 @@ export function useAttemptStream(
                 if (statusData.status && statusData.status !== 'running') {
                   console.log('[useAttemptStream] Delayed status check: not running', statusData.status);
                   setIsRunning(false);
+                  removeRunningTask(taskId);
                 }
               } catch {}
             }, 2000);
@@ -278,10 +301,12 @@ export function useAttemptStream(
             // Attempt is no longer running - ensure UI reflects this
             console.log('[useAttemptStream] Attempt not running, status:', data.attempt.status);
             setIsRunning(false);
+            removeRunningTask(taskId);
           }
         } else {
           // No running attempt
           setIsRunning(false);
+          removeRunningTask(taskId);
         }
       } catch (error) {
         console.error('Failed to check running attempt:', error);
@@ -289,7 +314,7 @@ export function useAttemptStream(
     };
 
     checkRunningAttempt();
-  }, [taskId, isConnected]);
+  }, [taskId, isConnected, removeRunningTask, addRunningTask, markTaskCompleted]);
 
   const startAttempt = useCallback(
     (taskId: string, prompt: string, displayPrompt?: string, fileIds?: string[]) => {
@@ -316,7 +341,7 @@ export function useAttemptStream(
 
       socket.emit('attempt:start', { taskId, prompt, displayPrompt, fileIds });
     },
-    [isConnected, addRunningTask]
+    [isConnected, addRunningTask, markTaskCompleted]
   );
 
   // Answer a question from AskUserQuestion

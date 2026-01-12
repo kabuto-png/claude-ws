@@ -20,6 +20,7 @@ export interface Task {
   description: string | null;
   status: TaskStatus;
   position: number;
+  chatInit: boolean;
   createdAt: number;
   updatedAt: number;
 }

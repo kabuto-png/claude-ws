@@ -22,6 +22,7 @@ interface PromptInputProps {
   hideSendButton?: boolean;
   disableSubmitShortcut?: boolean;
   onChange?: (prompt: string) => void;
+  initialValue?: string;
 }
 
 export function PromptInput({
@@ -34,8 +35,9 @@ export function PromptInput({
   hideSendButton = false,
   disableSubmitShortcut = false,
   onChange,
+  initialValue,
 }: PromptInputProps) {
-  const [prompt, setPrompt] = useState('');
+  const [prompt, setPrompt] = useState(initialValue || '');
   const [showCommands, setShowCommands] = useState(false);
   const [commandFilter, setCommandFilter] = useState('');
   const [selectedCommand, setSelectedCommand] = useState<string | null>(null);
@@ -238,6 +240,13 @@ export function PromptInput({
             value={prompt}
             onChange={(e) => updatePrompt(e.target.value)}
             onKeyDown={handleKeyDown}
+            onFocus={() => {
+              // Scroll to bottom of textarea on focus (for mobile virtual keyboard)
+              setTimeout(() => {
+                textareaRef.current?.setSelectionRange(textareaRef.current.value.length, textareaRef.current.value.length);
+                textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 100);
+            }}
             placeholder={placeholder}
             disabled={disabled}
             className={cn(
@@ -256,19 +265,20 @@ export function PromptInput({
         </div>
 
         {!hideSendButton && (
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground">
-              Type <kbd className="px-1 bg-muted rounded">/</kbd> for commands
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col gap-px">
+              <p className="text-[10px] text-muted-foreground">
+                Type <kbd className="px-0.5 bg-muted rounded text-[9px]">/</kbd> for commands
+              </p>
               {!disableSubmitShortcut && (
-                <>
-                  <span className="mx-2">·</span>
-                  <kbd className="px-1 bg-muted rounded">
+                <p className="text-[10px] text-muted-foreground">
+                  <kbd className="px-0.5 bg-muted rounded text-[9px]">
                     {typeof navigator !== 'undefined' && navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}
                   </kbd>
-                  +<kbd className="px-1 bg-muted rounded">Enter</kbd> to send
-                </>
+                  +<kbd className="px-0.5 bg-muted rounded text-[9px]">Enter</kbd> to send
+                </p>
               )}
-            </p>
+            </div>
             <div className="flex items-center gap-2">
               <Button
                 type="button"

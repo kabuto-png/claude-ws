@@ -106,6 +106,8 @@ app.prepare().then(() => {
           console.log(`[Server] Spawned attempt ${attemptId}${previousSessionId ? ` (resuming session ${previousSessionId})` : ''}${filePaths.length > 0 ? ` with ${filePaths.length} files` : ''}`);
 
           socket.emit('attempt:started', { attemptId, taskId });
+          // Global event for all clients to track running tasks
+          io.emit('task:started', { taskId });
         } catch (error) {
           console.error('Error starting attempt:', error);
           socket.emit('error', {
@@ -121,6 +123,11 @@ app.prepare().then(() => {
       const killed = processManager.kill(attemptId);
 
       if (killed) {
+        // Get attempt to retrieve taskId for global event
+        const attempt = await db.query.attempts.findFirst({
+          where: eq(schema.attempts.id, attemptId),
+        });
+
         await db
           .update(schema.attempts)
           .set({ status: 'cancelled', completedAt: Date.now() })
@@ -131,6 +138,11 @@ app.prepare().then(() => {
           status: 'cancelled',
           code: null,
         });
+
+        // Global event for all clients to track cancelled tasks
+        if (attempt?.taskId) {
+          io.emit('task:finished', { taskId: attempt.taskId, status: 'cancelled' });
+        }
       }
     });
 
@@ -227,6 +239,11 @@ app.prepare().then(() => {
   processManager.on('exit', async ({ attemptId, code }) => {
     const status: AttemptStatus = code === 0 ? 'completed' : 'failed';
 
+    // Get attempt to retrieve taskId for global event
+    const attempt = await db.query.attempts.findFirst({
+      where: eq(schema.attempts.id, attemptId),
+    });
+
     await db
       .update(schema.attempts)
       .set({ status, completedAt: Date.now() })
@@ -273,6 +290,11 @@ app.prepare().then(() => {
       status,
       code,
     });
+
+    // Global event for all clients to track completed tasks
+    if (attempt?.taskId) {
+      io.emit('task:finished', { taskId: attempt.taskId, status });
+    }
   });
 
   // Extract summary from last assistant message

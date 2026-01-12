@@ -272,7 +272,7 @@ export function ToolUseBlock({ name, input, result, isError, isStreaming, classN
 
         {/* Streaming spinner or icon */}
         {isStreaming ? (
-          <Loader2 className="size-4 shrink-0 animate-spin text-primary mt-0.5" />
+          <Loader2 className="size-4 shrink-0 animate-spin animate-glow-green text-green-500 dark:text-green-400 mt-0.5" />
         ) : isCompleted ? null : (
           <Icon className={cn('size-4 shrink-0 mt-0.5', isError && 'text-destructive')} />
         )}

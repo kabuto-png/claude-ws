@@ -316,3 +316,17 @@
 .animate-spin-border {
   animation: spin-border 2s linear infinite;
 }
+
+/* Green glow animation for processing spinner */
+@keyframes glow-green {
+  0%, 100% {
+    filter: drop-shadow(0 0 2px #22c55e) drop-shadow(0 0 4px #22c55e);
+  }
+  50% {
+    filter: drop-shadow(0 0 4px #22c55e) drop-shadow(0 0 12px #22c55e) drop-shadow(0 0 16px #22c55e);
+  }
+}
+
+.animate-glow-green {
+  animation: glow-green 1.5s ease-in-out infinite;
+}

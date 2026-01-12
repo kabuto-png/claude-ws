@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { X, Wifi, WifiOff, RotateCcw, GripVertical } from 'lucide-react';
+import { X, Wifi, WifiOff, RotateCcw, GripVertical, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -34,14 +34,18 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; variant: 'default' | 's
   cancelled: { label: 'Cancelled', variant: 'destructive' },
 };
 
+const STATUSES: TaskStatus[] = ['todo', 'in_progress', 'in_review', 'done', 'cancelled'];
+
 export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
-  const { selectedTask, setSelectedTask, updateTaskStatus } = useTaskStore();
+  const { selectedTask, setSelectedTask, updateTaskStatus, setTaskChatInit } = useTaskStore();
   const { getPendingFiles } = useAttachmentStore();
   const [conversationKey, setConversationKey] = useState(0);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
   const [currentAttemptFiles, setCurrentAttemptFiles] = useState<PendingFile[]>([]);
   const [isMobile, setIsMobile] = useState(false);
+  const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false);
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // Load saved width and detect mobile
@@ -62,6 +66,18 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Close status dropdown when clicking outside
+  useEffect(() => {
+    if (!showStatusDropdown) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
+        setShowStatusDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showStatusDropdown]);
 
   // Save width on change
   useEffect(() => {
@@ -134,6 +150,12 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
   };
 
   const handlePromptSubmit = (prompt: string, displayPrompt?: string, fileIds?: string[]) => {
+    // Set chatInit to true on first message send
+    if (!selectedTask.chatInit && !hasSentFirstMessage) {
+      setTaskChatInit(selectedTask.id, true);
+      setHasSentFirstMessage(true);
+    }
+
     // Capture pending files before they get cleared
     const pendingFiles = getPendingFiles(selectedTask.id);
     setCurrentAttemptFiles(pendingFiles);
@@ -172,7 +194,38 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
       <div className="flex items-start justify-between p-3 sm:p-4 border-b gap-2">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2 flex-wrap">
-            <Badge variant={statusConfig.variant}>{statusConfig.label}</Badge>
+            <div className="relative">
+              <button
+                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+              >
+                <Badge variant={statusConfig.variant} className="cursor-pointer">
+                  {statusConfig.label}
+                </Badge>
+                <ChevronDown className="size-3 text-muted-foreground" />
+              </button>
+              {showStatusDropdown && (
+                <div className="absolute top-full left-0 mt-1 z-50 bg-popover border rounded-md shadow-md min-w-[120px]">
+                  {STATUSES.map((status) => (
+                    <button
+                      key={status}
+                      onClick={async () => {
+                        setShowStatusDropdown(false);
+                        if (status !== selectedTask.status) {
+                          await updateTaskStatus(selectedTask.id, status);
+                        }
+                      }}
+                      className={cn(
+                        'w-full text-left px-3 py-1.5 text-sm hover:bg-accent transition-colors',
+                        status === selectedTask.status && 'bg-accent'
+                      )}
+                    >
+                      {STATUS_CONFIG[status].label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             {isConnected ? (
               <span className="flex items-center gap-1 text-xs text-green-600">
                 <Wifi className="size-3" />
@@ -242,7 +295,13 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
           </div>
         ) : (
           <div className="p-3 sm:p-4">
-            <PromptInput onSubmit={handlePromptSubmit} onCancel={cancelAttempt} disabled={isRunning} taskId={selectedTask.id} />
+            <PromptInput
+              onSubmit={handlePromptSubmit}
+              onCancel={cancelAttempt}
+              disabled={isRunning}
+              taskId={selectedTask.id}
+              initialValue={!selectedTask.chatInit && selectedTask.description ? selectedTask.description : undefined}
+            />
             <InteractiveCommandOverlay />
           </div>
         )}

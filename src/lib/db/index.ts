@@ -108,6 +108,13 @@ export function initDb() {
   } catch {
     // Column already exists, ignore error
   }
+
+  // Migration: Add chat_init column to tasks for tracking if chat has been initialized
+  try {
+    sqlite.exec(`ALTER TABLE tasks ADD COLUMN chat_init INTEGER NOT NULL DEFAULT 0`);
+  } catch {
+    // Column already exists, ignore error
+  }
 }
 
 // Initialize on first import

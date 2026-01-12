@@ -8,7 +8,6 @@ import { cn } from '@/lib/utils';
 import { GripVertical, MessageSquare, Trash2 } from 'lucide-react';
 import { useTaskStore } from '@/stores/task-store';
 import { useProjectStore } from '@/stores/project-store';
-import { useRunningTasksStore } from '@/stores/running-tasks-store';
 import { Button } from '@/components/ui/button';
 
 interface TaskCardProps {
@@ -19,9 +18,7 @@ interface TaskCardProps {
 export function TaskCard({ task, attemptCount = 0 }: TaskCardProps) {
   const { selectedTaskId, selectTask, deleteTask } = useTaskStore();
   const { projects, selectedProjectIds, isAllProjectsMode } = useProjectStore();
-  const { isTaskRunning } = useRunningTasksStore();
   const isSelected = selectedTaskId === task.id;
-  const isRunning = isTaskRunning(task.id);
 
   // Show project badge when viewing multiple projects
   const showProjectBadge = isAllProjectsMode() || selectedProjectIds.length > 1;

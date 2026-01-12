@@ -13,7 +13,6 @@ import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Folder,
-  FolderOpen,
   ChevronUp,
   Home,
   Loader2,
@@ -149,9 +148,6 @@ export function FolderBrowserDialog({
             <Home className="h-4 w-4 mr-1" />
             Home
           </Button>
-          <span className="text-sm text-muted-foreground truncate flex-1">
-            {currentPath}
-          </span>
         </div>
 
         {/* Error message */}
@@ -190,19 +186,13 @@ export function FolderBrowserDialog({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-between pt-2">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <FolderOpen className="h-4 w-4" />
-            <span className="truncate max-w-[300px]">{currentPath}</span>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSelect} disabled={!currentPath}>
-              Select This Folder
-            </Button>
-          </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSelect} disabled={!currentPath}>
+            Select This Folder
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -26,6 +26,7 @@ export const tasks = sqliteTable(
       .notNull()
       .default('todo'),
     position: integer('position').notNull(),
+    chatInit: integer('chat_init', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at', { mode: 'number' })
       .notNull()
       .$defaultFn(() => Date.now()),
