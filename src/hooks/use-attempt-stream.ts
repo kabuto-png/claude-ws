@@ -308,6 +308,18 @@ export function useAttemptStream(
     };
   }, []);
 
+  // Clear messages and reset state when taskId changes
+  useEffect(() => {
+    console.log('[useAttemptStream] TaskId changed, clearing state', { oldTaskId: currentTaskIdRef.current, newTaskId: taskId });
+    // Clear previous task's messages
+    setMessages([]);
+    setCurrentAttemptId(null);
+    setCurrentPrompt(null);
+    setIsRunning(false);
+    setActiveQuestion(null);
+    // Don't clear currentTaskIdRef here - we'll update it in checkRunningAttempt
+  }, [taskId]);
+
   // Check for running attempt on mount/taskId change
   useEffect(() => {
     if (!taskId || !isConnected) return;
@@ -332,9 +344,14 @@ export function useAttemptStream(
           addRunningTask(taskId);
           socketRef.current?.emit('attempt:subscribe', { attemptId: data.attempt.id });
           console.log('[useAttemptStream] Emitted attempt:subscribe for', data.attempt.id);
+        } else {
+          // No running attempt for this task, ensure currentTaskIdRef is updated
+          currentTaskIdRef.current = taskId;
         }
       } catch (error) {
         console.error('[useAttemptStream] checkRunningAttempt error', error);
+        // Ensure currentTaskIdRef is updated even on error
+        currentTaskIdRef.current = taskId;
       }
     };
     checkRunningAttempt();
