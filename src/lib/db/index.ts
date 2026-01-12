@@ -122,6 +122,13 @@ export function initDb() {
   } catch {
     // Column already exists, ignore error
   }
+
+  // Migration: Add forked_from_session_id column to tasks for rewind fork support
+  try {
+    sqlite.exec(`ALTER TABLE tasks ADD COLUMN forked_from_session_id TEXT`);
+  } catch {
+    // Column already exists, ignore error
+  }
 }
 
 // Initialize on first import

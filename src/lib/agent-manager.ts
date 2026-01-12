@@ -31,7 +31,10 @@ export interface AgentStartOptions {
   attemptId: string;
   projectPath: string;
   prompt: string;
-  sessionId?: string;
+  sessionOptions?: {
+    resume?: string;
+    forkSession?: string;
+  };
   filePaths?: string[];
 }
 
@@ -52,7 +55,7 @@ class AgentManager extends EventEmitter {
    * Start a new Claude Agent SDK query
    */
   async start(options: AgentStartOptions): Promise<void> {
-    const { attemptId, projectPath, prompt, sessionId, filePaths } = options;
+    const { attemptId, projectPath, prompt, sessionOptions, filePaths } = options;
 
     if (this.agents.has(attemptId)) {
       console.warn(`[AgentManager] Agent ${attemptId} already exists`);
@@ -62,8 +65,10 @@ class AgentManager extends EventEmitter {
     console.log(`[AgentManager] Starting agent for attempt ${attemptId}`);
     console.log(`[AgentManager] Project path: ${projectPath}`);
     console.log(`[AgentManager] Prompt: ${prompt.substring(0, 100)}...`);
-    if (sessionId) {
-      console.log(`[AgentManager] Resuming session: ${sessionId}`);
+    if (sessionOptions?.forkSession) {
+      console.log(`[AgentManager] Forking from session: ${sessionOptions.forkSession}`);
+    } else if (sessionOptions?.resume) {
+      console.log(`[AgentManager] Resuming session: ${sessionOptions.resume}`);
     }
 
     // Build prompt with file references and formatting instructions
@@ -93,7 +98,7 @@ class AgentManager extends EventEmitter {
     const checkpointOptions = checkpointManager.getCheckpointingOptions();
 
     // Start SDK query in background
-    this.runQuery(instance, projectPath, fullPrompt, sessionId, checkpointOptions);
+    this.runQuery(instance, projectPath, fullPrompt, sessionOptions, checkpointOptions);
   }
 
   /**
@@ -103,17 +108,22 @@ class AgentManager extends EventEmitter {
     instance: AgentInstance,
     projectPath: string,
     prompt: string,
-    sessionId?: string,
+    sessionOptions?: { resume?: string; forkSession?: string },
     checkpointOptions?: ReturnType<typeof checkpointManager.getCheckpointingOptions>
   ): Promise<void> {
     const { attemptId, controller } = instance;
 
     try {
       // Configure SDK query options
+      // forkSession: true with resume creates a new branch from the session, rewinding conversation context
       const queryOptions = {
         cwd: projectPath,
         permissionMode: 'bypassPermissions' as const,
-        ...(sessionId ? { resume: sessionId } : {}),
+        ...(sessionOptions?.forkSession
+          ? { resume: sessionOptions.forkSession, forkSession: true }
+          : sessionOptions?.resume
+            ? { resume: sessionOptions.resume }
+            : {}),
         ...checkpointOptions,
         abortController: controller,
       };

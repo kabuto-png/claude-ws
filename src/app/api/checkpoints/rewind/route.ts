@@ -57,7 +57,8 @@ export async function POST(request: Request) {
 
           // Call rewindFiles with checkpoint UUID
           // We need to iterate to open the connection first
-          for await (const _ of rewindQuery) {
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          for await (const _msg of rewindQuery) {
             await rewindQuery.rewindFiles(checkpoint.gitCommitHash);
             break;
           }
@@ -94,12 +95,22 @@ export async function POST(request: Request) {
       )
     );
 
+    // Set forkedFromSessionId on task so next attempt forks instead of resumes
+    // This ensures conversation context is rewound to checkpoint point
+    await db
+      .update(schema.tasks)
+      .set({ forkedFromSessionId: checkpoint.sessionId, updatedAt: Date.now() })
+      .where(eq(schema.tasks.id, checkpoint.taskId));
+
+    console.log(`[Rewind] Set fork session ${checkpoint.sessionId} for task ${checkpoint.taskId}`);
+
     return NextResponse.json({
       success: true,
       sessionId: checkpoint.sessionId,
       taskId: checkpoint.taskId,
       attemptId: checkpoint.attemptId,
       sdkRewind: sdkRewindResult,
+      forked: true, // Indicate conversation will be forked
     });
   } catch (error) {
     console.error('Failed to rewind checkpoint:', error);

@@ -62,8 +62,9 @@ app.prepare().then(() => {
             return;
           }
 
-          // Get the last session for conversation continuation
-          const previousSessionId = await sessionManager.getLastSessionId(taskId);
+          // Get session options for conversation continuation
+          // Returns { forkSession } if task was rewound, otherwise { resume }
+          const sessionOptions = await sessionManager.getSessionOptions(taskId);
 
           // Create attempt record
           const attemptId = nanoid();
@@ -100,11 +101,17 @@ app.prepare().then(() => {
             attemptId,
             projectPath: project.path,
             prompt,
-            sessionId: previousSessionId ?? undefined,
+            sessionOptions: Object.keys(sessionOptions).length > 0 ? sessionOptions : undefined,
             filePaths: filePaths.length > 0 ? filePaths : undefined,
           });
 
-          console.log(`[Server] Started attempt ${attemptId}${previousSessionId ? ` (resuming session ${previousSessionId})` : ''}${filePaths.length > 0 ? ` with ${filePaths.length} files` : ''}`);
+          // Log session mode
+          const sessionMode = sessionOptions.forkSession
+            ? `forking from session ${sessionOptions.forkSession}`
+            : sessionOptions.resume
+              ? `resuming session ${sessionOptions.resume}`
+              : 'new session';
+          console.log(`[Server] Started attempt ${attemptId} (${sessionMode})${filePaths.length > 0 ? ` with ${filePaths.length} files` : ''}`);
 
           socket.emit('attempt:started', { attemptId, taskId });
           // Global event for all clients to track running tasks
@@ -219,12 +226,12 @@ app.prepare().then(() => {
           // Join new attempt room
           socket.join(`attempt:${newAttemptId}`);
 
-          // Start new query with resume
+          // Start new query with resume (continuing current conversation)
           agentManager.start({
             attemptId: newAttemptId,
             projectPath: project.path,
             prompt: answer,
-            sessionId,
+            sessionOptions: { resume: sessionId },
           });
 
           console.log(`[Server] Started continuation attempt ${newAttemptId} with session ${sessionId}`);
@@ -292,6 +299,13 @@ app.prepare().then(() => {
     // Create checkpoint on successful completion
     if (code === 0 && attempt) {
       try {
+        // Clear fork session if this was a forked attempt (after rewind)
+        // This prevents re-forking on subsequent attempts
+        if (await sessionManager.hasPendingFork(attempt.taskId)) {
+          await sessionManager.clearForkSession(attempt.taskId);
+          console.log(`[Server] Cleared fork session for task ${attempt.taskId}`);
+        }
+
         const sessionId = await sessionManager.getSessionId(attemptId);
 
         if (sessionId) {
