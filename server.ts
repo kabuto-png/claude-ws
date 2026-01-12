@@ -163,6 +163,7 @@ app.prepare().then(() => {
 
     // Subscribe to attempt logs
     socket.on('attempt:subscribe', (data: { attemptId: string }) => {
+      console.log(`[Server] Socket ${socket.id} subscribing to attempt:${data.attemptId}`);
       socket.join(`attempt:${data.attemptId}`);
     });
 
@@ -267,6 +268,13 @@ app.prepare().then(() => {
         type: 'json',
         content: JSON.stringify(data),
       });
+    }
+
+    // Check how many clients are in the room
+    const room = io.sockets.adapter.rooms.get(`attempt:${attemptId}`);
+    const clientCount = room ? room.size : 0;
+    if (!isStreamingDelta) {
+      console.log(`[Server] Emitting output:json to attempt:${attemptId} (${clientCount} clients in room)`, data.type);
     }
 
     // Always forward to subscribers (for real-time streaming)

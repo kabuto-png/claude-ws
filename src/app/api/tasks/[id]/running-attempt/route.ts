@@ -20,9 +20,9 @@ export async function GET(
       orderBy: (attempts, { desc }) => [desc(attempts.createdAt)],
     });
 
-    // Clean up ALL stale 'running' attempts for this task (older than 5 minutes)
+    // Clean up ALL stale 'running' attempts for this task (older than 24 hours)
     // These likely resulted from server crashes or force kills
-    const fiveMinutesAgo = Date.now() - 5 * 60 * 1000;
+    const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
     await db
       .update(schema.attempts)
       .set({ status: 'failed', completedAt: Date.now() })
@@ -30,12 +30,12 @@ export async function GET(
         and(
           eq(schema.attempts.taskId, taskId),
           eq(schema.attempts.status, 'running'),
-          lt(schema.attempts.createdAt, fiveMinutesAgo)
+          lt(schema.attempts.createdAt, oneDayAgo)
         )
       );
 
     // If we found a running attempt but it was stale (now cleaned up), return null
-    if (runningAttempt && runningAttempt.createdAt < fiveMinutesAgo) {
+    if (runningAttempt && runningAttempt.createdAt < oneDayAgo) {
       console.log(`[running-attempt] Cleaned up stale attempt ${runningAttempt.id}`);
       return NextResponse.json({ attempt: null, messages: [] });
     }

@@ -9,7 +9,7 @@ import { CreateTaskDialog } from '@/components/kanban/create-task-dialog';
 import { TaskDetailPanel } from '@/components/task/task-detail-panel';
 import { SettingsDialog } from '@/components/settings/settings-dialog';
 import { SetupDialog } from '@/components/settings/setup-dialog';
-import { SidebarPanel, FilePreviewPanel, DiffPreviewPanel } from '@/components/sidebar';
+import { SidebarPanel, FileTabsPanel, DiffPreviewPanel } from '@/components/sidebar';
 import { RightSidebar } from '@/components/right-sidebar';
 import { useProjectStore } from '@/stores/project-store';
 import { useTaskStore } from '@/stores/task-store';
@@ -23,7 +23,9 @@ function KanbanApp() {
 
   const { projects, selectedProjectIds, fetchProjects, loading: projectLoading } = useProjectStore();
   const { selectedTask, fetchTasks, setSelectedTask, setPendingAutoStartTask } = useTaskStore();
-  const { toggleSidebar, previewFile, diffFile } = useSidebarStore();
+  const toggleSidebar = useSidebarStore((s) => s.toggleSidebar);
+  const hasOpenTabs = useSidebarStore((s) => s.openTabs.length > 0);
+  const diffFile = useSidebarStore((s) => s.diffFile);
 
   // Auto-show setup when no projects
   const autoShowSetup = !projectLoading && projects.length === 0;
@@ -100,14 +102,14 @@ function KanbanApp() {
         {/* Sidebar */}
         <SidebarPanel />
 
-        {/* File preview panel - in flow, pushes content */}
-        <FilePreviewPanel />
+        {/* File tabs panel - in flow, replaces board when tabs are open */}
+        <FileTabsPanel />
 
         {/* Diff preview panel - in flow, pushes content */}
         <DiffPreviewPanel />
 
-        {/* Main content - Kanban board (hidden when preview is open) */}
-        {!previewFile && !diffFile && (
+        {/* Main content - Kanban board (hidden when tabs or diff is open) */}
+        {!hasOpenTabs && !diffFile && (
           <main className="flex-1 overflow-auto min-w-0">
             {projects.length > 0 ? (
               <Board onCreateTask={() => setCreateTaskOpen(true)} />
