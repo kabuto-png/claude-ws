@@ -207,7 +207,7 @@ interface SearchResultsViewProps {
 }
 
 export function SearchResultsView({ results, onFileSelect }: SearchResultsViewProps) {
-  const { setSelectedFile, setPreviewFile } = useSidebarStore();
+  const { setSelectedFile, openTab } = useSidebarStore();
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
 
   // Auto-expand first few content results
@@ -219,15 +219,15 @@ export function SearchResultsView({ results, onFileSelect }: SearchResultsViewPr
 
   const handleFileClick = useCallback((path: string) => {
     setSelectedFile(path);
-    setPreviewFile(path);
+    openTab(path);
     onFileSelect(path);
-  }, [setSelectedFile, setPreviewFile, onFileSelect]);
+  }, [setSelectedFile, openTab, onFileSelect]);
 
   const handleLineClick = useCallback((path: string, lineNumber: number, column: number, matchLength: number) => {
     setSelectedFile(path);
-    setPreviewFile(path);
+    openTab(path);
     onFileSelect(path, lineNumber, column, matchLength);
-  }, [setSelectedFile, setPreviewFile, onFileSelect]);
+  }, [setSelectedFile, openTab, onFileSelect]);
 
   const toggleContentFile = useCallback((file: string) => {
     setExpandedFiles(prev => {

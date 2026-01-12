@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Loader2, AlertCircle, File, Copy, Check, Save, Undo, Redo, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { CodeMirrorEditor } from '@/components/editor/code-mirror-editor';
+import { CodeEditorWithDefinitions } from '@/components/editor/code-editor-with-definitions';
 import { useSidebarStore } from '@/stores/sidebar-store';
 import { useActiveProject } from '@/hooks/use-active-project';
 
@@ -488,13 +488,16 @@ export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
                 <span className="text-xs mt-1">{formatFileSize(content.size)}</span>
               </div>
             ) : (
-              <CodeMirrorEditor
+              <CodeEditorWithDefinitions
                 value={editedContent}
                 onChange={handleContentChange}
                 language={content.language}
                 className="h-full"
                 editorPosition={editorPosition}
                 focusOnNavigate={!searchVisible}
+                filePath={filePath}
+                basePath={activeProject?.path}
+                enableDefinitions={true}
               />
             )}
           </>
