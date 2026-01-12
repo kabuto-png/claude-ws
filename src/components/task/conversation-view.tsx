@@ -5,6 +5,7 @@ import { Loader2, FileText } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageBlock } from '@/components/claude/message-block';
 import { ToolUseBlock } from '@/components/claude/tool-use-block';
+import { RunningDots } from '@/components/ui/running-dots';
 import { cn } from '@/lib/utils';
 import type { ClaudeOutput, ClaudeContentBlock, AttemptFile, PendingFile } from '@/types';
 
@@ -152,7 +153,7 @@ export function ConversationView({
 
       return (
         <ToolUseBlock
-          key={index}
+          key={toolId || index}
           name={block.name || 'Unknown'}
           input={block.input}
           result={toolResult?.result}
@@ -179,11 +180,29 @@ export function ConversationView({
       const blocks = output.message.content;
 
       return (
-        <div key={index} className="space-y-1 max-w-full overflow-hidden">
+        <div key={(output as any)._msgId || index} className="space-y-1 max-w-full overflow-hidden">
           {blocks.map((block, blockIndex) =>
             renderContentBlock(block, blockIndex, blocks, toolResultsMap, isStreaming)
           )}
         </div>
+      );
+    }
+
+    // Handle top-level tool_use messages (for CLIs that send tool use as separate JSON objects)
+    if (output.type === 'tool_use') {
+      const toolId = output.id || '';
+      const toolResult = toolResultsMap.get(toolId);
+      const isExecuting = isStreaming && !toolResult; // If it's a top-level tool_use and no result yet
+
+      return (
+        <ToolUseBlock
+          key={(output as any)._msgId || toolId || index}
+          name={output.tool_name || 'Unknown'}
+          input={output.tool_data}
+          result={toolResult?.result}
+          isError={toolResult?.isError}
+          isStreaming={isExecuting}
+        />
       );
     }
 
@@ -200,7 +219,7 @@ export function ConversationView({
 
   // User prompt - simple muted box with file thumbnails
   const renderUserTurn = (turn: ConversationTurn) => (
-    <div key={`user-${turn.attemptId}`} className="bg-muted/50 rounded px-3 py-2 text-sm break-words space-y-2">
+    <div key={`user-${turn.attemptId}`} className="bg-muted/40 rounded-lg px-4 py-3 text-[15px] leading-relaxed break-words space-y-3">
       <div>{turn.prompt}</div>
       {turn.files && turn.files.length > 0 && (
         <div className="flex flex-wrap gap-2 pt-1">
@@ -241,7 +260,7 @@ export function ConversationView({
 
   // Assistant response - clean text flow
   const renderAssistantTurn = (turn: ConversationTurn) => (
-    <div key={`assistant-${turn.attemptId}`} className="space-y-1 max-w-full overflow-hidden">
+    <div key={`assistant-${turn.attemptId}`} className="space-y-4 max-w-full overflow-hidden">
       {turn.messages.map((msg, idx) => renderMessage(msg, idx, false, turn.messages))}
     </div>
   );
@@ -277,63 +296,63 @@ export function ConversationView({
 
   return (
     <ScrollArea ref={scrollAreaRef} className={cn('h-full', className)}>
-      <div className="space-y-3 p-4 pb-24 max-w-full overflow-hidden">
+      <div className="space-y-6 p-4 pb-24 max-w-full overflow-hidden">
         {/* Historical turns */}
         {historicalTurns.map(renderTurn)}
 
         {/* Current streaming messages - only show if not already in history */}
         {currentAttemptId && (currentMessages.length > 0 || isRunning) &&
-         !historicalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'assistant') && (
-          <>
-            {/* User prompt if not in history */}
-            {!historicalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'user') && currentPrompt && (
-              <div className="bg-muted/50 rounded px-3 py-2 text-sm break-words space-y-2">
-                <div>{currentPrompt}</div>
-                {currentFiles && currentFiles.length > 0 && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    {currentFiles.map((file) => {
-                      // Use previewUrl (blob URL) for immediate display - it stays valid
-                      // since we don't revoke it until page reload
-                      const imgSrc = file.previewUrl;
+          !historicalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'assistant') && (
+            <>
+              {/* User prompt if not in history */}
+              {!historicalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'user') && currentPrompt && (
+                <div className="bg-muted/40 rounded-lg px-4 py-3 text-[15px] leading-relaxed break-words space-y-3">
+                  <div>{currentPrompt}</div>
+                  {currentFiles && currentFiles.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {currentFiles.map((file) => {
+                        // Use previewUrl (blob URL) for immediate display - it stays valid
+                        // since we don't revoke it until page reload
+                        const imgSrc = file.previewUrl;
 
-                      return isImage(file.mimeType) ? (
-                        <img
-                          key={file.tempId}
-                          src={imgSrc}
-                          alt={file.originalName}
-                          className="h-16 w-auto rounded border border-border"
-                          title={file.originalName}
-                        />
-                      ) : (
-                        <div
-                          key={file.tempId}
-                          className="flex items-center gap-1 px-2 py-1 bg-background rounded border border-border text-xs"
-                          title={file.originalName}
-                        >
-                          <FileText className="size-3" />
-                          <span className="max-w-[100px] truncate">{file.originalName}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                        return isImage(file.mimeType) ? (
+                          <img
+                            key={file.tempId}
+                            src={imgSrc}
+                            alt={file.originalName}
+                            className="h-16 w-auto rounded border border-border"
+                            title={file.originalName}
+                          />
+                        ) : (
+                          <div
+                            key={file.tempId}
+                            className="flex items-center gap-1 px-2 py-1 bg-background rounded border border-border text-xs"
+                            title={file.originalName}
+                          >
+                            <FileText className="size-3" />
+                            <span className="max-w-[100px] truncate">{file.originalName}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+              {/* Streaming response */}
+              <div className="space-y-4 max-w-full overflow-hidden">
+                {currentMessages.map((msg, idx) => renderMessage(msg, idx, true, currentMessages))}
               </div>
-            )}
-            {/* Streaming response */}
-            <div className="space-y-1 max-w-full overflow-hidden">
-              {currentMessages.map((msg, idx) => renderMessage(msg, idx, true, currentMessages))}
-            </div>
-          </>
-        )}
+            </>
+          )}
 
         {/* Initial loading state - only show when waiting for first response */}
         {isRunning && currentMessages.length === 0 &&
-         !historicalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'assistant') && (
-          <div className="flex items-center gap-2 text-muted-foreground text-sm py-1">
-            <Loader2 className="size-4 animate-spin text-primary" />
-            <span className="font-mono text-[13px]">Thinking...</span>
-          </div>
-        )}
+          !historicalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'assistant') && (
+            <div className="flex items-center gap-2 text-muted-foreground text-sm py-1">
+              <RunningDots className="text-primary" />
+              <span className="font-mono text-[14px]">Thinking...</span>
+            </div>
+          )}
       </div>
     </ScrollArea>
   );

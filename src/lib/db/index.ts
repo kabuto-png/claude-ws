@@ -115,6 +115,13 @@ export function initDb() {
   } catch {
     // Column already exists, ignore error
   }
+
+  // Migration: Add git_commit_hash column to checkpoints for file rewind
+  try {
+    sqlite.exec(`ALTER TABLE checkpoints ADD COLUMN git_commit_hash TEXT`);
+  } catch {
+    // Column already exists, ignore error
+  }
 }
 
 // Initialize on first import

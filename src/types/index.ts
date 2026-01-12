@@ -74,6 +74,8 @@ export interface ClaudeMessage {
 
 export interface ClaudeOutput {
   type: ClaudeOutputType;
+  id?: string;
+  tool_use_id?: string;
   subtype?: string;
   message?: ClaudeMessage;
   session_id?: string;

@@ -216,7 +216,7 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
   useImperativeHandle(ref, () => ({
     submit: () => {
       if (!prompt.trim() || disabled) return;
-      handleSubmit({ preventDefault: () => {} } as FormEvent);
+      handleSubmit({ preventDefault: () => { } } as FormEvent);
     },
   }));
 
@@ -226,7 +226,7 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
       disabled={disabled}
       className={cn('relative flex flex-col', className)}
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-2">
+      <form onSubmit={handleSubmit} className="flex flex-col gap-2 w-full min-w-0">
         {/* Command Selector */}
         <CommandSelector
           isOpen={showCommands}
@@ -246,7 +246,7 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
         )}
 
         {/* Input area */}
-        <div className="relative">
+        <div className="relative w-full min-w-0">
           <Textarea
             ref={textareaRef}
             value={prompt}
@@ -262,7 +262,7 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
             placeholder={placeholder}
             disabled={disabled}
             className={cn(
-              'min-h-24 resize-none pr-10',
+              'min-h-24 resize-none pr-10 w-full break-words',
               selectedCommand && 'border-primary'
             )}
           />

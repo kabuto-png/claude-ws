@@ -14,10 +14,10 @@ import {
   ChevronRight,
   AlertCircle,
   Zap,
-  Loader2,
   Copy,
   Check,
 } from 'lucide-react';
+import { RunningDots } from '@/components/ui/running-dots';
 import { cn } from '@/lib/utils';
 import { DiffView } from './diff-view';
 import { Button } from '@/components/ui/button';
@@ -249,49 +249,48 @@ export function ToolUseBlock({ name, input, result, isError, isStreaming, classN
   const isCompleted = !isStreaming && result && !isError;
 
   return (
-    <div className={cn('group max-w-full overflow-hidden', className)}>
+    <div className={cn('group max-w-full overflow-hidden my-2', className)}>
       {/* Main status line */}
       <div
         className={cn(
-          'flex items-start gap-2 py-0.5 text-sm min-w-0',
-          isStreaming ? 'text-foreground' : 'text-muted-foreground',
-          hasOtherDetails && 'cursor-pointer hover:text-foreground'
+          'flex items-start gap-2.5 py-1.5 px-2 rounded-md transition-colors min-w-0 border border-transparent',
+          isStreaming ? 'text-foreground bg-accent/30 border-accent/20' : 'text-muted-foreground hover:bg-accent/20',
+          hasOtherDetails && 'cursor-pointer'
         )}
         onClick={() => hasOtherDetails && setIsExpanded(!isExpanded)}
       >
         {/* Completed indicator or expand/collapse */}
         {isCompleted && !hasOtherDetails ? (
-          <span className="text-green-600 dark:text-green-500 shrink-0 mt-0.5">●</span>
+          <span className="text-green-600 dark:text-green-500 shrink-0 mt-1">●</span>
         ) : hasOtherDetails ? (
           isExpanded ? (
-            <ChevronDown className="size-3 shrink-0 mt-1" />
+            <ChevronDown className="size-3.5 shrink-0 mt-1" />
           ) : (
-            <ChevronRight className="size-3 shrink-0 mt-1" />
+            <ChevronRight className="size-3.5 shrink-0 mt-1" />
           )
         ) : null}
 
         {/* Streaming spinner or icon */}
         {isStreaming ? (
-          <Loader2 className="size-4 shrink-0 animate-spin animate-glow-green text-green-500 dark:text-green-400 mt-0.5" />
+          <RunningDots className="shrink-0 text-green-500 dark:text-green-400 mt-1 animate-glow-green" />
         ) : isCompleted ? null : (
-          <Icon className={cn('size-4 shrink-0 mt-0.5', isError && 'text-destructive')} />
+          <Icon className={cn('size-4 shrink-0 mt-1', isError && 'text-destructive')} />
         )}
 
         {/* Tool name and target - allow wrapping */}
-        <span className={cn('font-mono text-[13px] min-w-0 flex-1', isError && 'text-destructive')}>
+        <span className={cn('font-mono text-[13.5px] leading-6 min-w-0 flex-1', isError && 'text-destructive')}>
           {isStreaming ? (
             <>
               {activeVerb} <span className="text-muted-foreground break-all">{displayText}</span>...
             </>
           ) : isCompleted ? (
             <>
-              <span className="font-semibold text-foreground">{name}</span>
-              <span className="text-muted-foreground">(</span>
-              <span className="text-foreground break-all">{displayText}</span>
-              <span className="text-muted-foreground">)</span>
+              <span className="font-semibold text-foreground/90">{name}</span>
+              <span className="text-muted-foreground mx-1">/</span>
+              <span className="text-foreground/80 break-all">{displayText}</span>
               {/* Result summary inline after parens */}
               {resultSummary && (
-                <span className="text-muted-foreground text-xs ml-1">({resultSummary})</span>
+                <span className="text-muted-foreground/60 text-xs ml-2">({resultSummary})</span>
               )}
             </>
           ) : (
@@ -301,12 +300,12 @@ export function ToolUseBlock({ name, input, result, isError, isStreaming, classN
 
         {/* Result summary for non-completed (streaming shows here) */}
         {resultSummary && !isStreaming && !isCompleted && (
-          <span className="text-muted-foreground text-xs shrink-0">
+          <span className="text-muted-foreground text-xs shrink-0 mt-1">
             ({resultSummary})
           </span>
         )}
 
-        {isError && <AlertCircle className="size-3 text-destructive shrink-0 mt-1" />}
+        {isError && <AlertCircle className="size-3.5 text-destructive shrink-0 mt-1" />}
       </div>
 
       {/* Special view for Bash */}
@@ -329,7 +328,7 @@ export function ToolUseBlock({ name, input, result, isError, isStreaming, classN
 
       {/* Standard expandable details for other tools */}
       {isExpanded && hasOtherDetails && (
-        <div className="ml-5 mt-1 pl-4 border-l border-border/50 text-xs text-muted-foreground space-y-2 max-w-full overflow-hidden">
+        <div className="ml-5 mt-1 pl-4 border-l border-border/50 text-[13px] text-muted-foreground space-y-2 max-w-full overflow-hidden">
           {inputObj && Object.keys(inputObj).length > 1 && (
             <pre className="font-mono bg-muted/30 p-2 rounded overflow-x-auto max-h-32 whitespace-pre-wrap break-all">
               {JSON.stringify(inputObj, null, 2)}

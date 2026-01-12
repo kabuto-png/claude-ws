@@ -1,5 +1,6 @@
 import { spawn, ChildProcess } from 'child_process';
 import { EventEmitter } from 'events';
+import { existsSync } from 'fs';
 import type { ClaudeOutput } from '@/types';
 import { getSystemPrompt } from './system-prompt';
 
@@ -20,20 +21,21 @@ interface ProcessEvents {
 /**
  * ProcessManager - Singleton class to manage Claude Code CLI processes
  * Handles spawning, output streaming, and lifecycle management
+ *
+ * Note: AskUserQuestion tool is handled by continuing the conversation
+ * with --resume when user provides their answer.
  */
 class ProcessManager extends EventEmitter {
   private processes = new Map<string, ProcessInstance>();
 
   constructor() {
     super();
-    // Cleanup on process exit
+    // Cleanup on process exit (SIGINT/SIGTERM handled by server.ts)
     process.on('exit', () => this.killAll());
-    process.on('SIGINT', () => this.killAll());
-    process.on('SIGTERM', () => this.killAll());
   }
 
   /**
-   * Spawn a new Claude Code CLI process using 'script' command for TTY emulation
+   * Spawn a new Claude Code CLI process
    * @param sessionId - Optional session ID to resume a previous conversation
    * @param filePaths - Optional array of file paths to include via @file syntax
    */
@@ -54,20 +56,15 @@ class ProcessManager extends EventEmitter {
     let claudePath = process.env.CLAUDE_PATH;
 
     if (!claudePath) {
-      // Try common paths in order of likelihood
       const commonPaths = [
-        '/home/roxane/.local/bin/claude',  // Ubuntu/Linux
-        '/usr/local/bin/claude',           // Linux system-wide
-        '/opt/homebrew/bin/claude',        // macOS
-        '/opt/homebrew/bin/claude',        // macOS (alternative)
+        '/home/roxane/.local/bin/claude',
+        '/usr/local/bin/claude',
+        '/opt/homebrew/bin/claude',
       ];
-
-      const { existsSync } = require('fs');
-      claudePath = commonPaths.find((p) => existsSync(p));
+      claudePath = commonPaths.find(p => existsSync(p));
     }
 
     if (!claudePath) {
-      // No Claude found - emit error with instructions
       const errorMsg = [
         'Claude CLI not found. Please set CLAUDE_PATH in your .env file:',
         '',
@@ -76,46 +73,38 @@ class ProcessManager extends EventEmitter {
         '',
         '# macOS (Homebrew):',
         'CLAUDE_PATH=/opt/homebrew/bin/claude',
-        '',
-        '# Or the full path to your claude binary',
       ].join('\n');
       this.emit('stderr', { attemptId, content: errorMsg });
       this.emit('exit', { attemptId, code: 1 });
       return;
     }
 
-    // Get formatting instructions to append to prompt (safe - doesn't override Claude's core system prompt)
+    // Get formatting instructions to append to prompt
     const formatInstructions = getSystemPrompt(projectPath);
-
-    // Combine user prompt with format instructions
     const fullPrompt = `${prompt}\n\n<output-format-guidelines>\n${formatInstructions}\n</output-format-guidelines>`;
 
-    // Build args array for spawn
+    // Build args array
     const args: string[] = [];
 
-    // Add file references first (before -p flag)
+    // Add file references first
     if (filePaths && filePaths.length > 0) {
       for (const fp of filePaths) {
         args.push(`@${fp}`);
       }
     }
 
-    // Add prompt
+    // Add prompt and flags
     args.push('-p', fullPrompt);
-
-    // Add required flags
     args.push('--output-format', 'stream-json');
     args.push('--verbose');
     args.push('--dangerously-skip-permissions');
 
-    // Add session resume if provided
     if (sessionId) {
       args.push('--resume', sessionId);
     }
 
     console.log(`[ProcessManager] Spawning:`, claudePath, 'with', args.length, 'args');
 
-    // Spawn Claude - ignore stdin to prevent blocking (AskUserQuestion handled separately)
     const child = spawn(claudePath, args, {
       cwd: projectPath,
       stdio: ['ignore', 'pipe', 'pipe'],
@@ -139,10 +128,6 @@ class ProcessManager extends EventEmitter {
 
     this.processes.set(attemptId, instance);
 
-    // End stdin to signal we're not sending more input (unless AskUserQuestion needs it later)
-    // Note: For AskUserQuestion, we'll need to keep stdin open - handled by sendInput method
-    // For now, don't close stdin so interactive responses can work
-
     // Handle stdout
     child.stdout?.on('data', (chunk: Buffer) => {
       const data = chunk.toString();
@@ -160,7 +145,6 @@ class ProcessManager extends EventEmitter {
     // Handle exit
     child.on('exit', (code) => {
       console.log(`[ProcessManager] Process ${attemptId} exited with code: ${code}`);
-      // Flush remaining buffer
       if (instance.buffer.trim()) {
         this.processLine(instance, instance.buffer);
       }
@@ -183,9 +167,8 @@ class ProcessManager extends EventEmitter {
   private handleOutput(instance: ProcessInstance, chunk: string): void {
     instance.buffer += chunk;
 
-    // Process complete lines
     const lines = instance.buffer.split('\n');
-    instance.buffer = lines.pop() || ''; // Keep incomplete line in buffer
+    instance.buffer = lines.pop() || '';
 
     for (const line of lines) {
       if (!line.trim()) continue;
@@ -201,28 +184,25 @@ class ProcessManager extends EventEmitter {
       const data = JSON.parse(line) as ClaudeOutput;
       this.emit('json', { attemptId: instance.attemptId, data });
     } catch {
-      // Non-JSON output - emit as raw
       this.emit('raw', { attemptId: instance.attemptId, content: line });
     }
   }
 
   /**
-   * Send input to process stdin (for interactive responses like AskUserQuestion)
-   * NOTE: Currently stdin is ignored to prevent blocking. Interactive responses
-   * will need to be handled differently (e.g., via API or separate process).
+   * Send input to process stdin
+   * Returns false since stdin is ignored (answers handled via --resume)
    */
   sendInput(attemptId: string, input: string): boolean {
     const instance = this.processes.get(attemptId);
-    if (!instance) return false;
-
-    // stdin is currently ignored - log warning
-    console.warn(`[ProcessManager] sendInput called but stdin is ignored for ${attemptId}`);
-    console.log(`[ProcessManager] Input was: ${input.substring(0, 100)}...`);
+    if (!instance) {
+      return false;  // Process not running
+    }
+    // stdin is ignored, return false to trigger continuation attempt
     return false;
   }
 
   /**
-   * Send interrupt signal to process (like Ctrl+C)
+   * Send interrupt signal (Ctrl+C)
    */
   interrupt(attemptId: string): boolean {
     const instance = this.processes.get(attemptId);

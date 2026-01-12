@@ -10,9 +10,13 @@ import { nanoid } from 'nanoid';
 import type { AttemptStatus, ClaudeOutput } from './src/types';
 import { processAttachments } from './src/lib/file-processor';
 import { buildPromptWithFiles } from './src/lib/prompt-builder';
+import { createSnapshot } from './src/lib/git-snapshot';
 
 // Track session IDs for attempts (in-memory for current running attempts)
 const attemptSessionIds = new Map<string, string>();
+
+// Track git commit hashes for attempts (before Claude makes changes)
+const attemptGitCommits = new Map<string, string>();
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -98,6 +102,12 @@ app.prepare().then(() => {
               .where(eq(schema.tasks.id, taskId));
           }
 
+          // Create git snapshot before Claude makes changes
+          const gitCommitHash = createSnapshot(project.path, attemptId, prompt);
+          if (gitCommitHash) {
+            attemptGitCommits.set(attemptId, gitCommitHash);
+          }
+
           // Join attempt room
           socket.join(`attempt:${attemptId}`);
 
@@ -156,18 +166,76 @@ app.prepare().then(() => {
       socket.leave(`attempt:${data.attemptId}`);
     });
 
-    // Handle AskUserQuestion response
+    // Handle AskUserQuestion response - start a new attempt with --resume
     socket.on(
       'question:answer',
-      (data: { attemptId: string; answer: string }) => {
+      async (data: { attemptId: string; answer: string }) => {
         const { attemptId, answer } = data;
         console.log(`[Server] Received answer for ${attemptId}: ${answer}`);
 
-        // Send the answer to Claude's stdin
+        // First try to send to stdin if process is still running
         const sent = processManager.sendInput(attemptId, answer);
-        if (!sent) {
-          console.error(`[Server] Failed to send answer to ${attemptId}`);
-          socket.emit('error', { message: 'Failed to send answer' });
+        if (sent) {
+          console.log(`[Server] Sent answer to running process ${attemptId}`);
+          return;
+        }
+
+        // Process not running - start a new attempt with --resume
+        console.log(`[Server] Process not running, starting continuation attempt`);
+
+        try {
+          // Get the original attempt to find taskId and sessionId
+          const originalAttempt = await db.query.attempts.findFirst({
+            where: eq(schema.attempts.id, attemptId),
+          });
+
+          if (!originalAttempt || !originalAttempt.sessionId) {
+            console.error(`[Server] Original attempt or session not found for ${attemptId}`);
+            socket.emit('error', { message: 'Session not found' });
+            return;
+          }
+
+          // Get task and project info
+          const task = await db.query.tasks.findFirst({
+            where: eq(schema.tasks.id, originalAttempt.taskId),
+          });
+
+          if (!task) {
+            socket.emit('error', { message: 'Task not found' });
+            return;
+          }
+
+          const project = await db.query.projects.findFirst({
+            where: eq(schema.projects.id, task.projectId),
+          });
+
+          if (!project) {
+            socket.emit('error', { message: 'Project not found' });
+            return;
+          }
+
+          // Create new attempt with the answer as prompt
+          const newAttemptId = nanoid();
+          await db.insert(schema.attempts).values({
+            id: newAttemptId,
+            taskId: originalAttempt.taskId,
+            prompt: answer,
+            displayPrompt: `Answer: ${answer}`,
+            status: 'running',
+          });
+
+          // Join new attempt room
+          socket.join(`attempt:${newAttemptId}`);
+
+          // Spawn Claude with --resume using original session
+          processManager.spawn(newAttemptId, project.path, answer, originalAttempt.sessionId);
+          console.log(`[Server] Started continuation attempt ${newAttemptId} with session ${originalAttempt.sessionId}`);
+
+          socket.emit('attempt:started', { attemptId: newAttemptId, taskId: originalAttempt.taskId });
+          io.emit('task:started', { taskId: originalAttempt.taskId });
+        } catch (error) {
+          console.error(`[Server] Error starting continuation:`, error);
+          socket.emit('error', { message: 'Failed to continue conversation' });
         }
       }
     );
@@ -265,24 +333,29 @@ app.prepare().then(() => {
           // Extract summary from last assistant message
           const summary = extractSummary(logs);
 
+          // Get git commit hash from before this attempt
+          const gitCommitHash = attemptGitCommits.get(attemptId) || null;
+
           await db.insert(schema.checkpoints).values({
             id: nanoid(),
             taskId: attempt.taskId,
             attemptId,
             sessionId: attempt.sessionId,
+            gitCommitHash,
             messageCount: logs.filter((l) => l.type === 'json').length,
             summary,
           });
 
-          console.log(`[Server] Created checkpoint for attempt ${attemptId}`);
+          console.log(`[Server] Created checkpoint for attempt ${attemptId}${gitCommitHash ? ` (git: ${gitCommitHash.substring(0, 7)})` : ''}`);
         }
       } catch (error) {
         console.error(`[Server] Failed to create checkpoint for ${attemptId}:`, error);
       }
     }
 
-    // Clean up in-memory session tracking
+    // Clean up in-memory tracking
     attemptSessionIds.delete(attemptId);
+    attemptGitCommits.delete(attemptId);
 
     console.log(`[Server] Emitting attempt:finished for ${attemptId} with status ${status}`);
     io.to(`attempt:${attemptId}`).emit('attempt:finished', {
@@ -321,4 +394,33 @@ app.prepare().then(() => {
   httpServer.listen(port, () => {
     console.log(`> Ready on http://${hostname}:${port}`);
   });
+
+  // Graceful shutdown handler
+  const shutdown = async (signal: string) => {
+    console.log(`\n> ${signal} received, shutting down gracefully...`);
+
+    // Kill all Claude processes first
+    processManager.killAll();
+    console.log('> Killed all Claude processes');
+
+    // Close all socket connections
+    io.close(() => {
+      console.log('> Socket.io closed');
+    });
+
+    // Close HTTP server
+    httpServer.close(() => {
+      console.log('> HTTP server closed');
+      process.exit(0);
+    });
+
+    // Force exit after 5 seconds if graceful shutdown fails
+    setTimeout(() => {
+      console.error('> Forced exit after timeout');
+      process.exit(1);
+    }, 5000);
+  };
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 });

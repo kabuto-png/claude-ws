@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { RotateCcw, Clock, MessageSquare, Loader2 } from 'lucide-react';
+import { RotateCcw, Clock, MessageSquare, Loader2, GitCommit } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useInteractiveCommandStore } from '@/stores/interactive-command-store';
 import { cn } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface Checkpoint {
   id: string;
   taskId: string;
   attemptId: string;
   sessionId: string;
+  gitCommitHash: string | null;
   messageCount: number;
   summary: string | null;
   createdAt: number;
@@ -51,20 +53,41 @@ export function CheckpointList({ taskId }: CheckpointListProps) {
   // Handle rewind
   const handleRewind = async () => {
     if (!selectedId) return;
+    const selectedCheckpoint = checkpoints.find((c) => c.id === selectedId);
     setRewinding(true);
     try {
       const res = await fetch('/api/checkpoints/rewind', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ checkpointId: selectedId }),
+        body: JSON.stringify({
+          checkpointId: selectedId,
+          rewindFiles: true, // Always rewind files if git commit exists
+        }),
       });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to rewind');
       }
+      const data = await res.json();
+
+      // Show success message with details
+      const hasGitRewind = data.gitRewind?.success;
+      toast.success(
+        hasGitRewind
+          ? `Rewound conversation & files to checkpoint`
+          : `Rewound conversation to checkpoint`,
+        {
+          description: hasGitRewind
+            ? `Git restored to ${selectedCheckpoint?.gitCommitHash?.substring(0, 7)}`
+            : selectedCheckpoint?.gitCommitHash
+              ? 'Git rewind failed, conversation only'
+              : 'No git snapshot for this checkpoint'
+        }
+      );
+
       // Success - close and refresh
       closeCommand();
-      window.location.reload(); // Simple refresh for now
+      window.location.reload();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to rewind');
     } finally {
@@ -160,6 +183,12 @@ export function CheckpointList({ taskId }: CheckpointListProps) {
                 <MessageSquare className="size-3" />
                 {checkpoint.messageCount} messages
               </span>
+              {checkpoint.gitCommitHash && (
+                <span className="flex items-center gap-1 text-green-600 dark:text-green-400" title={`Git: ${checkpoint.gitCommitHash}`}>
+                  <GitCommit className="size-3" />
+                  {checkpoint.gitCommitHash.substring(0, 7)}
+                </span>
+              )}
             </div>
             {checkpoint.summary && (
               <p className="mt-1 text-xs text-muted-foreground line-clamp-2">

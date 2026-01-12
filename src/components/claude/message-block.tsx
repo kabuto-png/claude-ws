@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import { ChevronDown, ChevronRight, Brain } from 'lucide-react';
+import { RunningDots } from '@/components/ui/running-dots';
 import { cn } from '@/lib/utils';
 import { CodeBlock } from './code-block';
 import 'highlight.js/styles/github-dark.css';
@@ -30,8 +31,8 @@ export function MessageBlock({ content, isThinking = false, className }: Message
           ) : (
             <ChevronRight className="size-3" />
           )}
-          <Brain className="size-4" />
-          <span className="font-mono text-[13px]">Thinking...</span>
+          <RunningDots className="text-primary" />
+          <span className="font-mono text-[14px]">Thinking...</span>
         </button>
 
         {isExpanded && (
@@ -44,7 +45,7 @@ export function MessageBlock({ content, isThinking = false, className }: Message
   }
 
   return (
-    <div className={cn('text-sm leading-relaxed max-w-full overflow-hidden', className)}>
+    <div className={cn('text-[15px] leading-7 max-w-full overflow-hidden', className)}>
       <MarkdownContent content={content} />
     </div>
   );
@@ -59,27 +60,27 @@ function MarkdownContent({ content }: { content: string }) {
       components={{
         // Headings - consistent sizing, not too big
         h1: ({ children }) => (
-          <h1 className="text-base font-semibold mt-4 mb-2 first:mt-0">{children}</h1>
+          <h1 className="text-lg font-semibold mt-6 mb-3 first:mt-0">{children}</h1>
         ),
         h2: ({ children }) => (
-          <h2 className="text-base font-semibold mt-3 mb-2 first:mt-0">{children}</h2>
+          <h2 className="text-base font-semibold mt-5 mb-2 first:mt-0">{children}</h2>
         ),
         h3: ({ children }) => (
-          <h3 className="text-sm font-semibold mt-3 mb-1 first:mt-0">{children}</h3>
+          <h3 className="text-[15px] font-semibold mt-4 mb-2 first:mt-0">{children}</h3>
         ),
         // Paragraphs
         p: ({ children }) => (
-          <p className="mb-2 last:mb-0 break-words">{children}</p>
+          <p className="mb-4 last:mb-0 break-words">{children}</p>
         ),
         // Lists
         ul: ({ children }) => (
-          <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>
+          <ul className="list-disc list-inside mb-4 space-y-1.5">{children}</ul>
         ),
         ol: ({ children }) => (
-          <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>
+          <ol className="list-decimal list-inside mb-4 space-y-1.5">{children}</ol>
         ),
         li: ({ children }) => (
-          <li className="text-sm">{children}</li>
+          <li className="text-[15px]">{children}</li>
         ),
         // Code
         code({ inline, className, children, ...props }: any) {

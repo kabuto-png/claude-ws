@@ -319,13 +319,19 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
                 if (selectedTask?.status !== 'in_progress') {
                   moveTaskToInProgress(selectedTask.id);
                 }
-                // For single-select, send the first answer
-                // For multi-select, join with commas
-                const firstAnswer = Object.values(answers)[0];
-                const answerStr = Array.isArray(firstAnswer)
-                  ? firstAnswer.join(', ')
-                  : firstAnswer;
-                answerQuestion(answerStr);
+                // Format all answers with their headers for Claude
+                const answerParts = Object.entries(answers).map(([header, value]) => {
+                  const answerStr = Array.isArray(value) ? value.join(', ') : value;
+                  return `${header}: ${answerStr}`;
+                });
+                // Single answer: just send the value
+                // Multiple answers: format as list with headers
+                const fullAnswer = answerParts.length === 1
+                  ? (Array.isArray(Object.values(answers)[0])
+                      ? (Object.values(answers)[0] as string[]).join(', ')
+                      : Object.values(answers)[0] as string)
+                  : `Here are my answers:\n${answerParts.map(p => `- ${p}`).join('\n')}`;
+                answerQuestion(fullAnswer);
               }}
               onCancel={cancelQuestion}
             />

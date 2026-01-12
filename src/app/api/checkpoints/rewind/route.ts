@@ -1,14 +1,16 @@
 import { NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq, and, gt } from 'drizzle-orm';
+import { rewindToCommit } from '@/lib/git-snapshot';
 
 // POST /api/checkpoints/rewind
-// Body: { checkpointId: string }
+// Body: { checkpointId: string, rewindFiles?: boolean }
 // Deletes all attempts/logs/checkpoints after this checkpoint
+// Optionally rewinds git to the checkpoint's commit
 // Returns the checkpoint's sessionId for resuming
 export async function POST(request: Request) {
   try {
-    const { checkpointId } = await request.json();
+    const { checkpointId, rewindFiles = true } = await request.json();
 
     if (!checkpointId) {
       return NextResponse.json({ error: 'checkpointId required' }, { status: 400 });
@@ -21,6 +23,28 @@ export async function POST(request: Request) {
 
     if (!checkpoint) {
       return NextResponse.json({ error: 'Checkpoint not found' }, { status: 404 });
+    }
+
+    // Get task and project for git rewind
+    const task = await db.query.tasks.findFirst({
+      where: eq(schema.tasks.id, checkpoint.taskId),
+    });
+
+    let gitRewindResult = null;
+
+    // Rewind git if requested and commit hash exists
+    if (rewindFiles && checkpoint.gitCommitHash && task) {
+      const project = await db.query.projects.findFirst({
+        where: eq(schema.projects.id, task.projectId),
+      });
+
+      if (project) {
+        gitRewindResult = rewindToCommit(project.path, checkpoint.gitCommitHash);
+        if (!gitRewindResult.success) {
+          console.error('[Rewind] Git rewind failed:', gitRewindResult.error);
+          // Continue with conversation rewind even if git fails
+        }
+      }
     }
 
     // Get all attempts after this checkpoint for the same task
@@ -49,6 +73,7 @@ export async function POST(request: Request) {
       sessionId: checkpoint.sessionId,
       taskId: checkpoint.taskId,
       attemptId: checkpoint.attemptId,
+      gitRewind: gitRewindResult,
     });
   } catch (error) {
     console.error('Failed to rewind checkpoint:', error);

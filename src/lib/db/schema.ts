@@ -118,6 +118,7 @@ export const checkpoints = sqliteTable(
       .notNull()
       .references(() => attempts.id, { onDelete: 'cascade' }),
     sessionId: text('session_id').notNull(), // Claude session ID for --resume
+    gitCommitHash: text('git_commit_hash'), // Git commit hash for file rewind
     messageCount: integer('message_count').notNull(),
     summary: text('summary'), // Auto-generated summary from last assistant message
     createdAt: integer('created_at', { mode: 'number' })
