@@ -11,7 +11,7 @@ import { useProjectStore } from '@/stores/project-store';
 import { cn } from '@/lib/utils';
 
 const MIN_WIDTH = 200;
-const MAX_WIDTH = 400;
+const MAX_WIDTH = 300;
 const DEFAULT_WIDTH = 280;
 
 interface SidebarPanelProps {

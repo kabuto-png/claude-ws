@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, X, Loader2, FileText, FileCode, ChevronRight, ChevronDown } from 'lucide-react';
+import { Search, X, Loader2, FileText, FileCode, ChevronRight, ChevronDown, RefreshCw } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { FileIcon } from './file-icon';
@@ -42,9 +42,11 @@ type SearchMode = 'all' | 'files' | 'content';
 interface UnifiedSearchProps {
   onSearchChange: (results: SearchResults | null) => void;
   className?: string;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
-export function UnifiedSearch({ onSearchChange, className }: UnifiedSearchProps) {
+export function UnifiedSearch({ onSearchChange, className, onRefresh, refreshing }: UnifiedSearchProps) {
   const activeProject = useActiveProject();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -127,19 +129,33 @@ export function UnifiedSearch({ onSearchChange, className }: UnifiedSearchProps)
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={searchMode === 'content' ? 'Search content...' : searchMode === 'files' ? 'Search files...' : 'Search files...'}
-          className="pl-8 pr-8 h-8 text-sm"
+          className="pl-8 pr-16 h-8 text-sm"
           data-slot="unified-search-input"
         />
-        {query && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="absolute right-1 top-1/2 -translate-y-1/2 size-6"
-            onClick={handleClear}
-          >
-            <X className="size-3" />
-          </Button>
-        )}
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
+          {query && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              onClick={handleClear}
+            >
+              <X className="size-3" />
+            </Button>
+          )}
+          {onRefresh && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-6"
+              onClick={onRefresh}
+              disabled={refreshing}
+              title="Refresh file tree"
+            >
+              <RefreshCw className={`size-3 ${refreshing ? 'animate-spin' : ''}`} />
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Search mode filter */}

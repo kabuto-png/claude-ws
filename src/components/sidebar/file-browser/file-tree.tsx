@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { FileTreeItem } from './file-tree-item';
@@ -127,18 +127,14 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Search input */}
-      <div className="p-2 border-b flex gap-2">
-        <UnifiedSearch onSearchChange={handleSearchChange} className="flex-1" />
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={handleRefresh}
-          disabled={loading}
-          title="Refresh file tree"
-        >
-          <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
-        </Button>
+      {/* Search input with refresh button */}
+      <div className="p-2 border-b">
+        <UnifiedSearch
+          onSearchChange={handleSearchChange}
+          className="flex-1"
+          onRefresh={handleRefresh}
+          refreshing={loading}
+        />
       </div>
 
       {/* Content: Search results OR File tree */}
