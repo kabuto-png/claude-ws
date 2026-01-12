@@ -71,18 +71,11 @@ export function useAttemptStream(
     socketInstance.on('connect', () => {
       console.log('Attempt stream socket connected:', socketInstance.id);
       setIsConnected(true);
+      // Re-subscribe to current attempt room on reconnect
+      // State validation is handled by checkRunningAttempt effect
       setCurrentAttemptId((currentId) => {
         if (currentId) {
           socketInstance.emit('attempt:subscribe', { attemptId: currentId });
-          fetch(`/api/attempts/${currentId}/status`)
-            .then(res => res.json())
-            .then(data => {
-              if (data.status && data.status !== 'running') {
-                setIsRunning(false);
-                if (currentTaskIdRef.current) removeRunningTask(currentTaskIdRef.current);
-              }
-            })
-            .catch(() => { });
         }
         return currentId;
       });
@@ -104,6 +97,7 @@ export function useAttemptStream(
     // Message handling - SDK streams both deltas and complete messages
     socketInstance.on('output:json', (data: { attemptId: string; data: ClaudeOutput }) => {
       const { attemptId, data: output } = data;
+      console.log('[useAttemptStream] Received output:json', { attemptId, type: output.type });
 
       if (output.type === 'result') {
         setIsRunning(false);
@@ -111,9 +105,12 @@ export function useAttemptStream(
       }
 
       setMessages((prev) => {
+        console.log('[useAttemptStream] setMessages called', { prevLength: prev.length, outputType: output.type });
+
         // Handle streaming text/thinking deltas
         if (output.type === 'content_block_delta' && (output as any).delta) {
           const delta = (output as any).delta;
+          console.log('[useAttemptStream] Received delta', { deltaType: delta.type, hasText: !!delta.text, hasThinking: !!delta.thinking });
 
           // Only handle text and thinking deltas
           if (delta.type !== 'text_delta' && delta.type !== 'thinking_delta') {
@@ -128,7 +125,7 @@ export function useAttemptStream(
           let assistantMsg: any;
           let content: any[];
 
-          if (existingIndex >= 0) {
+          if (existingIndex >= 0 && (prev[existingIndex] as any)._fromStreaming) {
             assistantMsg = { ...prev[existingIndex] };
             content = [...(assistantMsg.message?.content || [])];
           } else {
@@ -137,6 +134,7 @@ export function useAttemptStream(
               message: { role: 'assistant', content: [] },
               _attemptId: attemptId,
               _msgId: Math.random().toString(36),
+              _fromStreaming: true,
             };
             content = [];
           }
@@ -169,11 +167,15 @@ export function useAttemptStream(
 
           assistantMsg.message = { ...assistantMsg.message, content };
 
-          if (existingIndex >= 0) {
+          // Only update if we found an existing streaming message
+          const shouldUpdate = existingIndex >= 0 && (prev[existingIndex] as any)._fromStreaming;
+          if (shouldUpdate) {
             const updated = [...prev];
             updated[existingIndex] = assistantMsg;
+            console.log('[useAttemptStream] Updated assistant message with delta', { textLength: content.find((b: any) => b.type === 'text')?.text?.length });
             return updated;
           }
+          console.log('[useAttemptStream] Created new assistant message with delta');
           return [...prev, assistantMsg];
         }
 
@@ -207,11 +209,17 @@ export function useAttemptStream(
         }
 
         // For assistant messages, update the last assistant message for the same attempt
+        // ONLY merge if:
+        // 1. Message has _fromStreaming flag (created during streaming, not loaded from API)
+        // 2. It's the LAST message in the array (same turn, not a new turn)
+        // If there's a tool_result or user message after, this is a NEW turn - append instead
         if (output.type === 'assistant') {
-          const existingIndex = prev.findLastIndex(
-            (m) => m.type === 'assistant' && (m as any)._attemptId === attemptId
-          );
-          if (existingIndex >= 0) {
+          const lastMsg = prev[prev.length - 1];
+          const isLastMsgStreamingAssistant = lastMsg?.type === 'assistant' && (lastMsg as any)._fromStreaming;
+
+          // Only merge if the last message is a streaming assistant (same turn)
+          if (isLastMsgStreamingAssistant) {
+            const existingIndex = prev.length - 1;
             const existing = prev[existingIndex] as any;
             const existingContent = existing.message?.content || [];
             const newContent = output.message?.content || [];
@@ -254,12 +262,18 @@ export function useAttemptStream(
               message: { ...output.message, content: mergedContent },
               _attemptId: attemptId,
             };
+            console.log('[useAttemptStream] Merged assistant message at index', existingIndex);
             return updated;
           }
         }
 
         // Default: append new message
-        return [...prev, taggedOutput];
+        // Mark assistant messages as streaming-created so they can be merge targets
+        const finalOutput = output.type === 'assistant'
+          ? { ...taggedOutput, _fromStreaming: true }
+          : taggedOutput;
+        console.log('[useAttemptStream] Appending new message', { type: output.type, newLength: prev.length + 1 });
+        return [...prev, finalOutput];
       });
     });
 
@@ -297,12 +311,15 @@ export function useAttemptStream(
   // Check for running attempt on mount/taskId change
   useEffect(() => {
     if (!taskId || !isConnected) return;
+    console.log('[useAttemptStream] checkRunningAttempt triggered', { taskId, isConnected });
     const checkRunningAttempt = async () => {
       try {
         const res = await fetch(`/api/tasks/${taskId}/running-attempt`);
         if (!res.ok) return;
         const data = await res.json();
+        console.log('[useAttemptStream] running-attempt API response', data);
         if (data.attempt && data.attempt.status === 'running') {
+          console.log('[useAttemptStream] Found running attempt, subscribing...', data.attempt.id);
           currentTaskIdRef.current = taskId;
           setCurrentAttemptId(data.attempt.id);
           setCurrentPrompt(data.attempt.prompt);
@@ -314,8 +331,11 @@ export function useAttemptStream(
           setIsRunning(true);
           addRunningTask(taskId);
           socketRef.current?.emit('attempt:subscribe', { attemptId: data.attempt.id });
+          console.log('[useAttemptStream] Emitted attempt:subscribe for', data.attempt.id);
         }
-      } catch (error) { }
+      } catch (error) {
+        console.error('[useAttemptStream] checkRunningAttempt error', error);
+      }
     };
     checkRunningAttempt();
   }, [taskId, isConnected]);

@@ -17,8 +17,61 @@ interface MessageBlockProps {
   className?: string;
 }
 
-export function MessageBlock({ content, isThinking = false, className }: MessageBlockProps) {
+export function MessageBlock({ content, isThinking = false, isStreaming = false, className }: MessageBlockProps) {
   const [isExpanded, setIsExpanded] = useState(!isThinking);
+  const [displayContent, setDisplayContent] = useState(content);
+  const prevContentRef = useRef(content);
+  const animatingRef = useRef(false);
+
+  // Typewriter effect for streaming content
+  useEffect(() => {
+    // Skip animation for thinking blocks or non-streaming
+    if (isThinking || !isStreaming) {
+      setDisplayContent(content);
+      prevContentRef.current = content;
+      return;
+    }
+
+    // If content shortened or same, show immediately
+    if (content.length <= prevContentRef.current.length) {
+      setDisplayContent(content);
+      prevContentRef.current = content;
+      return;
+    }
+
+    // New content added - animate typing
+    const startFrom = displayContent.length;
+    const targetLength = content.length;
+
+    if (startFrom >= targetLength) {
+      prevContentRef.current = content;
+      return;
+    }
+
+    // Prevent overlapping animations
+    if (animatingRef.current) return;
+    animatingRef.current = true;
+
+    let currentLength = startFrom;
+    const charsPerFrame = 12; // Speed: characters per frame
+    const frameInterval = 16; // ~60fps
+
+    const timer = setInterval(() => {
+      currentLength = Math.min(currentLength + charsPerFrame, targetLength);
+      setDisplayContent(content.slice(0, currentLength));
+
+      if (currentLength >= targetLength) {
+        clearInterval(timer);
+        animatingRef.current = false;
+        prevContentRef.current = content;
+      }
+    }, frameInterval);
+
+    return () => {
+      clearInterval(timer);
+      animatingRef.current = false;
+    };
+  }, [content, isThinking, isStreaming]);
 
   if (isThinking) {
     return (
@@ -47,7 +100,7 @@ export function MessageBlock({ content, isThinking = false, className }: Message
 
   return (
     <div className={cn('text-[15px] leading-7 max-w-full overflow-hidden', className)}>
-      <MarkdownContent content={content} />
+      <MarkdownContent content={displayContent} />
     </div>
   );
 }

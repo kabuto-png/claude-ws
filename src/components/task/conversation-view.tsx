@@ -78,20 +78,38 @@ function hasVisibleContent(messages: ClaudeOutput[]): boolean {
   });
 }
 
-// Find if this is the last tool_use in the message stream (still executing)
+// Find the last tool_use ID across all messages (globally)
+function findLastToolUseId(messages: ClaudeOutput[]): string | null {
+  let lastToolUseId: string | null = null;
+  for (const msg of messages) {
+    // Check assistant message content blocks
+    if (msg.type === 'assistant' && msg.message?.content) {
+      for (const block of msg.message.content) {
+        if (block.type === 'tool_use' && block.id) {
+          lastToolUseId = block.id;
+        }
+      }
+    }
+    // Check top-level tool_use messages
+    if (msg.type === 'tool_use' && msg.id) {
+      lastToolUseId = msg.id;
+    }
+  }
+  return lastToolUseId;
+}
+
+// Check if this is the last tool_use globally (still executing)
 function isToolExecuting(
   toolId: string,
-  allBlocks: ClaudeContentBlock[],
+  lastToolUseId: string | null,
   toolResultsMap: Map<string, { result: string; isError: boolean }>,
   isStreaming: boolean
 ): boolean {
   if (!isStreaming) return false;
   // If we have a result, it's not executing
   if (toolResultsMap.has(toolId)) return false;
-  // Find if this is the last tool_use block
-  const toolUseBlocks = allBlocks.filter(b => b.type === 'tool_use');
-  const lastToolUse = toolUseBlocks[toolUseBlocks.length - 1];
-  return lastToolUse?.id === toolId;
+  // Only the LAST tool_use globally is executing
+  return toolId === lastToolUseId;
 }
 
 export function ConversationView({
@@ -108,7 +126,25 @@ export function ConversationView({
   const [isLoading, setIsLoading] = useState(true);
   const [lastIsRunning, setLastIsRunning] = useState(isRunning);
 
-  // Scroll to bottom of scroll area viewport
+  // Check if user is near bottom of scroll area (within threshold)
+  const isNearBottom = () => {
+    const viewport = scrollAreaRef.current?.querySelector('[data-slot="scroll-area-viewport"]');
+    if (!viewport) return true;
+    const threshold = 150; // pixels from bottom
+    return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < threshold;
+  };
+
+  // Scroll to bottom of scroll area viewport (only if user is near bottom)
+  const scrollToBottomIfNear = () => {
+    if (isNearBottom()) {
+      const viewport = scrollAreaRef.current?.querySelector('[data-slot="scroll-area-viewport"]');
+      if (viewport) {
+        viewport.scrollTop = viewport.scrollHeight;
+      }
+    }
+  };
+
+  // Force scroll to bottom (bypasses isNearBottom check)
   const scrollToBottom = () => {
     const viewport = scrollAreaRef.current?.querySelector('[data-slot="scroll-area-viewport"]');
     if (viewport) {
@@ -136,6 +172,14 @@ export function ConversationView({
     loadHistory();
   }, [taskId]);
 
+  // Auto-scroll to bottom when switching to a new task (after history loads)
+  useEffect(() => {
+    if (!isLoading && historicalTurns.length > 0) {
+      // Small delay to ensure DOM is updated
+      setTimeout(scrollToBottom, 100);
+    }
+  }, [taskId, isLoading]);
+
   // Refresh history when an attempt finishes
   useEffect(() => {
     if (lastIsRunning && !isRunning) {
@@ -144,30 +188,30 @@ export function ConversationView({
     setLastIsRunning(isRunning);
   }, [isRunning, lastIsRunning]);
 
-  // Auto-scroll to bottom on new messages
+  // Auto-scroll to bottom on new messages (only if user is near bottom)
   useEffect(() => {
-    scrollToBottom();
+    scrollToBottomIfNear();
   }, [currentMessages, historicalTurns, isRunning]);
 
   const renderContentBlock = (
     block: ClaudeContentBlock,
     index: number,
-    allBlocks: ClaudeContentBlock[],
+    lastToolUseId: string | null,
     toolResultsMap: Map<string, { result: string; isError: boolean }>,
     isStreaming: boolean
   ) => {
     if (block.type === 'text' && block.text) {
-      return <MessageBlock key={index} content={block.text} />;
+      return <MessageBlock key={index} content={block.text} isStreaming={isStreaming} />;
     }
 
     if (block.type === 'thinking' && block.thinking) {
-      return <MessageBlock key={index} content={block.thinking} isThinking />;
+      return <MessageBlock key={index} content={block.thinking} isThinking isStreaming={isStreaming} />;
     }
 
     if (block.type === 'tool_use') {
       const toolId = block.id || '';
       const toolResult = toolResultsMap.get(toolId);
-      const executing = isToolExecuting(toolId, allBlocks, toolResultsMap, isStreaming);
+      const executing = isToolExecuting(toolId, lastToolUseId, toolResultsMap, isStreaming);
 
       return (
         <ToolUseBlock
@@ -191,6 +235,7 @@ export function ConversationView({
     allMessages: ClaudeOutput[]
   ) => {
     const toolResultsMap = buildToolResultsMap(allMessages);
+    const lastToolUseId = findLastToolUseId(allMessages);
 
     // Handle assistant messages - render ALL content blocks in order (text, thinking, tool_use)
     // This preserves the natural order of Claude's response
@@ -200,7 +245,7 @@ export function ConversationView({
       return (
         <div key={(output as any)._msgId || index} className="space-y-1 max-w-full overflow-hidden">
           {blocks.map((block, blockIndex) =>
-            renderContentBlock(block, blockIndex, blocks, toolResultsMap, isStreaming)
+            renderContentBlock(block, blockIndex, lastToolUseId, toolResultsMap, isStreaming)
           )}
         </div>
       );
@@ -210,7 +255,7 @@ export function ConversationView({
     if (output.type === 'tool_use') {
       const toolId = output.id || '';
       const toolResult = toolResultsMap.get(toolId);
-      const isExecuting = isStreaming && !toolResult; // If it's a top-level tool_use and no result yet
+      const isExecuting = isToolExecuting(toolId, lastToolUseId, toolResultsMap, isStreaming);
 
       return (
         <ToolUseBlock
@@ -312,18 +357,24 @@ export function ConversationView({
     );
   }
 
+  // Filter out currently running attempt from history to avoid duplication
+  // When streaming, current messages should be shown from currentMessages, not history
+  const filteredHistoricalTurns = currentAttemptId && isRunning
+    ? historicalTurns.filter(t => t.attemptId !== currentAttemptId)
+    : historicalTurns;
+
   return (
     <ScrollArea ref={scrollAreaRef} className={cn('h-full', className)}>
       <div className="space-y-6 p-4 pb-24 max-w-full overflow-hidden">
         {/* Historical turns */}
-        {historicalTurns.map(renderTurn)}
+        {filteredHistoricalTurns.map(renderTurn)}
 
-        {/* Current streaming messages - only show if not already in history */}
+        {/* Current streaming messages - only show if not already in filtered history */}
         {currentAttemptId && (currentMessages.length > 0 || isRunning) &&
-          !historicalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'assistant') && (
+          !filteredHistoricalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'assistant') && (
             <>
               {/* User prompt if not in history */}
-              {!historicalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'user') && currentPrompt && (
+              {!filteredHistoricalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'user') && currentPrompt && (
                 <div className="bg-muted/40 rounded-lg px-4 py-3 text-[15px] leading-relaxed break-words space-y-3">
                   <div>{currentPrompt}</div>
                   {currentFiles && currentFiles.length > 0 && (
@@ -365,7 +416,7 @@ export function ConversationView({
 
         {/* Initial loading state - show until actual visible content appears */}
         {isRunning && !hasVisibleContent(currentMessages) &&
-          !historicalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'assistant') && (
+          !filteredHistoricalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'assistant') && (
             <div className="flex items-center gap-2 text-muted-foreground text-sm py-1">
               <RunningDots className="text-primary" />
               <span className="font-mono text-[14px]">Thinking...</span>
