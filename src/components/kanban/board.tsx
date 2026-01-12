@@ -102,15 +102,28 @@ export function Board({ attempts = [], onCreateTask }: BoardProps) {
     } else {
       // Dropping over another task
       const overTask = tasks.find((t) => t.id === overId);
-      if (overTask && activeTask.status === overTask.status) {
-        const columnTasks = tasksByStatus.get(overTask.status) || [];
+      if (overTask) {
+        const targetColumn = overTask.status;
+        const columnTasks = tasksByStatus.get(targetColumn) || [];
+
+        // Find current position in the active task's current column
         const oldIndex = columnTasks.findIndex((t) => t.id === activeId);
+
+        // Find position in target column
         const newIndex = columnTasks.findIndex((t) => t.id === overId);
 
-        if (oldIndex !== newIndex) {
-          const reordered = arrayMove(columnTasks, oldIndex, newIndex);
-          const newPosition = reordered.findIndex((t) => t.id === activeId);
-          reorderTasks(activeTask.id, activeTask.status, newPosition);
+        // If moving to different column or reordering within same column
+        if (activeTask.status !== targetColumn || oldIndex !== newIndex) {
+          // Handle the move in the target column
+          if (activeTask.status !== targetColumn) {
+            // Moving to different column - place at the position of overTask
+            reorderTasks(activeTask.id, targetColumn, newIndex);
+          } else if (oldIndex !== -1 && newIndex !== -1) {
+            // Reordering within same column
+            const reordered = arrayMove(columnTasks, oldIndex, newIndex);
+            const newPosition = reordered.findIndex((t) => t.id === activeId);
+            reorderTasks(activeTask.id, activeTask.status, newPosition);
+          }
         }
       }
     }
@@ -140,15 +153,28 @@ export function Board({ attempts = [], onCreateTask }: BoardProps) {
     } else {
       // Dropping over another task
       const overTask = tasks.find((t) => t.id === overId);
-      if (overTask && activeTask.status === overTask.status) {
-        const columnTasks = tasksByStatus.get(overTask.status) || [];
+      if (overTask) {
+        const targetColumn = overTask.status;
+        const columnTasks = tasksByStatus.get(targetColumn) || [];
+
+        // Find current position in the active task's current column
         const oldIndex = columnTasks.findIndex((t) => t.id === activeId);
+
+        // Find position in target column
         const newIndex = columnTasks.findIndex((t) => t.id === overId);
 
-        if (oldIndex !== newIndex) {
-          const reordered = arrayMove(columnTasks, oldIndex, newIndex);
-          const newPosition = reordered.findIndex((t) => t.id === activeId);
-          reorderTasks(activeTask.id, activeTask.status, newPosition);
+        // If moving to different column or reordering within same column
+        if (activeTask.status !== targetColumn || oldIndex !== newIndex) {
+          // Handle the move in the target column
+          if (activeTask.status !== targetColumn) {
+            // Moving to different column - place at the position of overTask
+            reorderTasks(activeTask.id, targetColumn, newIndex);
+          } else if (oldIndex !== -1 && newIndex !== -1) {
+            // Reordering within same column
+            const reordered = arrayMove(columnTasks, oldIndex, newIndex);
+            const newPosition = reordered.findIndex((t) => t.id === activeId);
+            reorderTasks(activeTask.id, activeTask.status, newPosition);
+          }
         }
       }
     }
