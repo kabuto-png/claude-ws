@@ -101,6 +101,7 @@ export function useAttemptStream(
       if (data.status === 'completed') markTaskCompleted(data.taskId);
     });
 
+    // Simplified message handling - SDK guarantees complete messages
     socketInstance.on('output:json', (data: { attemptId: string; data: ClaudeOutput }) => {
       const { attemptId, data: output } = data;
 
@@ -110,145 +111,89 @@ export function useAttemptStream(
       }
 
       setMessages((prev) => {
-        const newMessages = [...prev];
+        // Generate unique ID for this message
+        const msgId = Math.random().toString(36);
+        const taggedOutput = { ...output, _attemptId: attemptId, _msgId: msgId } as ClaudeOutput & { _attemptId: string; _msgId: string };
 
-        // --- 1. Tool Use Merging ---
-        // Match by id (if present) or tool_name (if streaming without id)
-        if (output.type === 'tool_use') {
-          const index = newMessages.findLastIndex(
-            (m) => m.type === 'tool_use' &&
-              (m as any)._attemptId === attemptId &&
-              (m.id === output.id || (m.tool_name === output.tool_name && !m.id))
+        // For tool_use messages, try to update existing or append
+        if (output.type === 'tool_use' && output.id) {
+          const existingIndex = prev.findIndex(
+            (m) => m.type === 'tool_use' && m.id === output.id
           );
-
-          if (index >= 0) {
-            newMessages[index] = { ...output, _attemptId: attemptId, _msgId: (newMessages[index] as any)._msgId } as any;
-            return newMessages;
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = taggedOutput;
+            return updated;
           }
-          return [...prev, { ...output, _attemptId: attemptId, _msgId: Math.random().toString(36) } as any];
         }
 
-        // --- 2. Assistant Message Merging ---
-        // Resilience against partial snapshots: only update if the new content is "more complete"
+        // For tool_result messages, update existing by tool_use_id
+        if (output.type === 'tool_result' && output.tool_data?.tool_use_id) {
+          const toolUseId = output.tool_data.tool_use_id;
+          const existingIndex = prev.findIndex(
+            (m) => m.type === 'tool_result' && m.tool_data?.tool_use_id === toolUseId
+          );
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = taggedOutput;
+            return updated;
+          }
+        }
+
+        // For assistant messages, update the last assistant message for the same attempt
         if (output.type === 'assistant') {
-          const index = newMessages.findLastIndex(
+          const existingIndex = prev.findLastIndex(
             (m) => m.type === 'assistant' && (m as any)._attemptId === attemptId
           );
+          if (existingIndex >= 0) {
+            const existing = prev[existingIndex] as any;
+            const existingContent = existing.message?.content || [];
+            const newContent = output.message?.content || [];
 
-          const incomingContent = output.message?.content || [];
+            // Merge content blocks: keep existing blocks, update/add new ones
+            const mergedContent = [...existingContent];
+            for (const newBlock of newContent) {
+              const blockIndex = mergedContent.findIndex(
+                (b: any) => b.type === newBlock.type && (
+                  (newBlock.type === 'tool_use' && b.id === newBlock.id) ||
+                  (newBlock.type !== 'tool_use')
+                )
+              );
 
-          if (index >= 0) {
-            const existing = { ...newMessages[index] };
-            const mergedContent = [...(existing.message?.content || [])];
-
-            incomingContent.forEach((newBlock, i) => {
-              if (i < mergedContent.length) {
-                const oldBlock = mergedContent[i];
-                if (newBlock.type === oldBlock.type) {
-                  // For text/thinking, keep the longer one (snapshot vs chunk resilience)
-                  if (newBlock.type === 'text') {
-                    if ((newBlock.text?.length || 0) >= (oldBlock.text?.length || 0)) {
-                      mergedContent[i] = newBlock;
-                    }
-                  } else if (newBlock.type === 'thinking') {
-                    if ((newBlock.thinking?.length || 0) >= (oldBlock.thinking?.length || 0)) {
-                      mergedContent[i] = newBlock;
-                    }
-                  } else {
-                    mergedContent[i] = newBlock;
+              if (blockIndex >= 0 && newBlock.type !== 'tool_use') {
+                // Update non-tool_use block (text, thinking)
+                const oldBlock = mergedContent[blockIndex];
+                if (newBlock.type === 'text') {
+                  // Keep the longer text
+                  if ((newBlock.text?.length || 0) >= (oldBlock.text?.length || 0)) {
+                    mergedContent[blockIndex] = newBlock;
+                  }
+                } else if (newBlock.type === 'thinking') {
+                  // Keep the longer thinking
+                  if ((newBlock.thinking?.length || 0) >= (oldBlock.thinking?.length || 0)) {
+                    mergedContent[blockIndex] = newBlock;
                   }
                 } else {
-                  mergedContent[i] = newBlock;
+                  mergedContent[blockIndex] = newBlock;
                 }
-              } else {
+              } else if (blockIndex < 0) {
+                // New block, append it
                 mergedContent.push(newBlock);
               }
-            });
+            }
 
-            existing.message = { ...output.message, content: mergedContent };
-            newMessages[index] = { ...existing, _attemptId: attemptId } as any;
-            return newMessages;
+            const updated = [...prev];
+            updated[existingIndex] = {
+              ...existing,
+              message: { ...output.message, content: mergedContent },
+              _attemptId: attemptId,
+            };
+            return updated;
           }
-          return [...prev, { ...output, _attemptId: attemptId, _msgId: Math.random().toString(36) } as any];
         }
 
-        // --- 3. Stream Event Handling ---
-        if (output.type === 'stream_event' && output.event) {
-          const event = output.event;
-          const index = newMessages.findLastIndex(
-            (m) => m.type === 'assistant' && (m as any)._attemptId === attemptId
-          );
-
-          if (index >= 0) {
-            const existing = { ...newMessages[index] };
-            const content = [...(existing.message?.content || [])];
-            const i = event.index ?? (content.length > 0 ? content.length - 1 : 0);
-
-            if (!content[i]) {
-              content[i] = event.content_block || { type: (event.delta?.type || 'text') as any };
-            }
-
-            if (event.delta) {
-              const block = { ...content[i] };
-              if (event.delta.text) {
-                if (block.type === 'text') block.text = (block.text || '') + event.delta.text;
-                if (block.type === 'thinking') block.thinking = (block.thinking || '') + event.delta.text;
-              }
-              content[i] = block;
-            }
-
-            existing.message = { ...existing.message, content };
-            newMessages[index] = existing;
-            return newMessages;
-          }
-
-          // Initial assistant message from stream event if snapshot hasn't arrived
-          const newAssistant: ClaudeOutput = { type: 'assistant', message: { content: [] } };
-          (newAssistant as any)._attemptId = attemptId;
-          (newAssistant as any)._msgId = Math.random().toString(36);
-
-          if (event.content_block) {
-            newAssistant.message!.content = [event.content_block];
-          } else if (event.delta) {
-            const block: any = { type: event.delta.type || 'text' };
-            if (event.delta.text) {
-              if (block.type === 'text') block.text = event.delta.text;
-              if (block.type === 'thinking') block.thinking = event.delta.text;
-            }
-            newAssistant.message!.content = [block];
-          }
-          return [...prev, newAssistant];
-        }
-
-        // --- 4. Tool Result Extraction (User message) ---
-        if (output.type === 'user' && output.message?.content) {
-          const currentNewMessages = [...newMessages];
-          let updated = false;
-          for (const block of output.message.content) {
-            if (block.type === 'tool_result') {
-              updated = true;
-              const toolUseId = (block as any).tool_use_id;
-              const existingIndex = currentNewMessages.findIndex(
-                (m) => m.type === 'tool_result' && m.tool_data?.tool_use_id === toolUseId
-              );
-              const resultMsg: ClaudeOutput = {
-                type: 'tool_result',
-                tool_data: { tool_use_id: toolUseId },
-                result: (block as any).content || '',
-                is_error: (block as any).is_error || false,
-                _attemptId: attemptId,
-                _msgId: Math.random().toString(36)
-              } as any;
-
-              if (existingIndex >= 0) currentNewMessages[existingIndex] = resultMsg;
-              else currentNewMessages.push(resultMsg);
-            }
-          }
-          if (updated) return currentNewMessages;
-        }
-
-        // --- 5. Default Append ---
-        return [...prev, { ...output, _attemptId: attemptId, _msgId: Math.random().toString(36) } as any];
+        // Default: append new message
+        return [...prev, taggedOutput];
       });
     });
 
@@ -283,6 +228,7 @@ export function useAttemptStream(
     };
   }, []);
 
+  // Check for running attempt on mount/taskId change
   useEffect(() => {
     if (!taskId || !isConnected) return;
     const checkRunningAttempt = async () => {
@@ -294,7 +240,11 @@ export function useAttemptStream(
           currentTaskIdRef.current = taskId;
           setCurrentAttemptId(data.attempt.id);
           setCurrentPrompt(data.attempt.prompt);
-          setMessages((data.messages || []).map((m: any) => ({ ...m, _attemptId: data.attempt.id, _msgId: Math.random().toString(36) })));
+          setMessages((data.messages || []).map((m: any) => ({
+            ...m,
+            _attemptId: data.attempt.id,
+            _msgId: Math.random().toString(36)
+          })));
           setIsRunning(true);
           addRunningTask(taskId);
           socketRef.current?.emit('attempt:subscribe', { attemptId: data.attempt.id });

@@ -3,20 +3,14 @@ import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { Server as SocketIOServer } from 'socket.io';
-import { processManager } from './src/lib/process-manager';
+import { agentManager } from './src/lib/agent-manager';
+import { sessionManager } from './src/lib/session-manager';
+import { checkpointManager } from './src/lib/checkpoint-manager';
 import { db, schema } from './src/lib/db';
-import { eq, desc } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
-import type { AttemptStatus, ClaudeOutput } from './src/types';
+import type { AttemptStatus } from './src/types';
 import { processAttachments } from './src/lib/file-processor';
-import { buildPromptWithFiles } from './src/lib/prompt-builder';
-import { createSnapshot } from './src/lib/git-snapshot';
-
-// Track session IDs for attempts (in-memory for current running attempts)
-const attemptSessionIds = new Map<string, string>();
-
-// Track git commit hashes for attempts (before Claude makes changes)
-const attemptGitCommits = new Map<string, string>();
 
 const dev = process.env.NODE_ENV !== 'production';
 const hostname = 'localhost';
@@ -68,12 +62,8 @@ app.prepare().then(() => {
             return;
           }
 
-          // Get the last completed attempt's session_id for conversation continuation
-          const lastAttempt = await db.query.attempts.findFirst({
-            where: eq(schema.attempts.taskId, taskId),
-            orderBy: [desc(schema.attempts.createdAt)],
-          });
-          const previousSessionId = lastAttempt?.sessionId ?? undefined;
+          // Get the last session for conversation continuation
+          const previousSessionId = await sessionManager.getLastSessionId(taskId);
 
           // Create attempt record
           const attemptId = nanoid();
@@ -102,18 +92,19 @@ app.prepare().then(() => {
               .where(eq(schema.tasks.id, taskId));
           }
 
-          // Create git snapshot before Claude makes changes
-          const gitCommitHash = createSnapshot(project.path, attemptId, prompt);
-          if (gitCommitHash) {
-            attemptGitCommits.set(attemptId, gitCommitHash);
-          }
-
           // Join attempt room
           socket.join(`attempt:${attemptId}`);
 
-          // Spawn Claude Code process with session resumption and file paths
-          processManager.spawn(attemptId, project.path, prompt, previousSessionId, filePaths.length > 0 ? filePaths : undefined);
-          console.log(`[Server] Spawned attempt ${attemptId}${previousSessionId ? ` (resuming session ${previousSessionId})` : ''}${filePaths.length > 0 ? ` with ${filePaths.length} files` : ''}`);
+          // Start Claude Agent SDK query
+          agentManager.start({
+            attemptId,
+            projectPath: project.path,
+            prompt,
+            sessionId: previousSessionId ?? undefined,
+            filePaths: filePaths.length > 0 ? filePaths : undefined,
+          });
+
+          console.log(`[Server] Started attempt ${attemptId}${previousSessionId ? ` (resuming session ${previousSessionId})` : ''}${filePaths.length > 0 ? ` with ${filePaths.length} files` : ''}`);
 
           socket.emit('attempt:started', { attemptId, taskId });
           // Global event for all clients to track running tasks
@@ -130,9 +121,9 @@ app.prepare().then(() => {
     // Cancel/kill attempt
     socket.on('attempt:cancel', async (data: { attemptId: string }) => {
       const { attemptId } = data;
-      const killed = processManager.kill(attemptId);
+      const cancelled = agentManager.cancel(attemptId);
 
-      if (killed) {
+      if (cancelled) {
         // Get attempt to retrieve taskId for global event
         const attempt = await db.query.attempts.findFirst({
           where: eq(schema.attempts.id, attemptId),
@@ -142,6 +133,9 @@ app.prepare().then(() => {
           .update(schema.attempts)
           .set({ status: 'cancelled', completedAt: Date.now() })
           .where(eq(schema.attempts.id, attemptId));
+
+        // Clear checkpoint tracking
+        checkpointManager.clearAttemptCheckpoint(attemptId);
 
         io.to(`attempt:${attemptId}`).emit('attempt:finished', {
           attemptId,
@@ -173,25 +167,23 @@ app.prepare().then(() => {
         const { attemptId, answer } = data;
         console.log(`[Server] Received answer for ${attemptId}: ${answer}`);
 
-        // First try to send to stdin if process is still running
-        const sent = processManager.sendInput(attemptId, answer);
-        if (sent) {
-          console.log(`[Server] Sent answer to running process ${attemptId}`);
+        // Get session ID for the original attempt
+        const sessionId = await sessionManager.getSessionId(attemptId);
+
+        if (!sessionId) {
+          console.error(`[Server] Session not found for ${attemptId}`);
+          socket.emit('error', { message: 'Session not found' });
           return;
         }
 
-        // Process not running - start a new attempt with --resume
-        console.log(`[Server] Process not running, starting continuation attempt`);
-
         try {
-          // Get the original attempt to find taskId and sessionId
+          // Get the original attempt to find taskId
           const originalAttempt = await db.query.attempts.findFirst({
             where: eq(schema.attempts.id, attemptId),
           });
 
-          if (!originalAttempt || !originalAttempt.sessionId) {
-            console.error(`[Server] Original attempt or session not found for ${attemptId}`);
-            socket.emit('error', { message: 'Session not found' });
+          if (!originalAttempt) {
+            socket.emit('error', { message: 'Attempt not found' });
             return;
           }
 
@@ -227,9 +219,15 @@ app.prepare().then(() => {
           // Join new attempt room
           socket.join(`attempt:${newAttemptId}`);
 
-          // Spawn Claude with --resume using original session
-          processManager.spawn(newAttemptId, project.path, answer, originalAttempt.sessionId);
-          console.log(`[Server] Started continuation attempt ${newAttemptId} with session ${originalAttempt.sessionId}`);
+          // Start new query with resume
+          agentManager.start({
+            attemptId: newAttemptId,
+            projectPath: project.path,
+            prompt: answer,
+            sessionId,
+          });
+
+          console.log(`[Server] Started continuation attempt ${newAttemptId} with session ${sessionId}`);
 
           socket.emit('attempt:started', { attemptId: newAttemptId, taskId: originalAttempt.taskId });
           io.emit('task:started', { taskId: originalAttempt.taskId });
@@ -245,34 +243,8 @@ app.prepare().then(() => {
     });
   });
 
-  // Forward ProcessManager events to WebSocket clients
-  processManager.on('json', async ({ attemptId, data }) => {
-    // Extract session_id from system message and store it
-    if (data.type === 'system' && data.session_id) {
-      attemptSessionIds.set(attemptId, data.session_id);
-      console.log(`[Server] Captured session_id for ${attemptId}: ${data.session_id}`);
-
-      // Store session_id in the attempt record
-      await db
-        .update(schema.attempts)
-        .set({ sessionId: data.session_id })
-        .where(eq(schema.attempts.id, attemptId));
-    }
-
-    // Detect AskUserQuestion tool_use and emit special event
-    if (data.type === 'assistant' && data.message?.content) {
-      for (const block of data.message.content) {
-        if (block.type === 'tool_use' && block.name === 'AskUserQuestion') {
-          console.log(`[Server] AskUserQuestion detected for ${attemptId}`);
-          io.to(`attempt:${attemptId}`).emit('question:ask', {
-            attemptId,
-            toolUseId: block.id,
-            questions: (block.input as { questions: unknown[] }).questions,
-          });
-        }
-      }
-    }
-
+  // Forward AgentManager events to WebSocket clients
+  agentManager.on('json', async ({ attemptId, data }) => {
     // Save to database
     await db.insert(schema.attemptLogs).values({
       attemptId,
@@ -284,17 +256,7 @@ app.prepare().then(() => {
     io.to(`attempt:${attemptId}`).emit('output:json', { attemptId, data });
   });
 
-  processManager.on('raw', async ({ attemptId, content }) => {
-    await db.insert(schema.attemptLogs).values({
-      attemptId,
-      type: 'stdout',
-      content,
-    });
-
-    io.to(`attempt:${attemptId}`).emit('output:raw', { attemptId, content });
-  });
-
-  processManager.on('stderr', async ({ attemptId, content }) => {
+  agentManager.on('stderr', async ({ attemptId, content }) => {
     await db.insert(schema.attemptLogs).values({
       attemptId,
       type: 'stderr',
@@ -304,7 +266,17 @@ app.prepare().then(() => {
     io.to(`attempt:${attemptId}`).emit('output:stderr', { attemptId, content });
   });
 
-  processManager.on('exit', async ({ attemptId, code }) => {
+  // Handle AskUserQuestion detection from AgentManager
+  agentManager.on('question', ({ attemptId, toolUseId, questions }) => {
+    console.log(`[Server] AskUserQuestion detected for ${attemptId}`);
+    io.to(`attempt:${attemptId}`).emit('question:ask', {
+      attemptId,
+      toolUseId,
+      questions,
+    });
+  });
+
+  agentManager.on('exit', async ({ attemptId, code }) => {
     const status: AttemptStatus = code === 0 ? 'completed' : 'failed';
 
     // Get attempt to retrieve taskId for global event
@@ -318,13 +290,11 @@ app.prepare().then(() => {
       .where(eq(schema.attempts.id, attemptId));
 
     // Create checkpoint on successful completion
-    if (code === 0) {
+    if (code === 0 && attempt) {
       try {
-        const attempt = await db.query.attempts.findFirst({
-          where: eq(schema.attempts.id, attemptId),
-        });
+        const sessionId = await sessionManager.getSessionId(attemptId);
 
-        if (attempt?.sessionId) {
+        if (sessionId) {
           // Count messages in this attempt
           const logs = await db.query.attemptLogs.findMany({
             where: eq(schema.attemptLogs.attemptId, attemptId),
@@ -333,29 +303,22 @@ app.prepare().then(() => {
           // Extract summary from last assistant message
           const summary = extractSummary(logs);
 
-          // Get git commit hash from before this attempt
-          const gitCommitHash = attemptGitCommits.get(attemptId) || null;
-
-          await db.insert(schema.checkpoints).values({
-            id: nanoid(),
-            taskId: attempt.taskId,
+          // Save checkpoint using CheckpointManager
+          await checkpointManager.saveCheckpoint(
             attemptId,
-            sessionId: attempt.sessionId,
-            gitCommitHash,
-            messageCount: logs.filter((l) => l.type === 'json').length,
-            summary,
-          });
-
-          console.log(`[Server] Created checkpoint for attempt ${attemptId}${gitCommitHash ? ` (git: ${gitCommitHash.substring(0, 7)})` : ''}`);
+            attempt.taskId,
+            sessionId,
+            logs.filter((l) => l.type === 'json').length,
+            summary
+          );
         }
       } catch (error) {
         console.error(`[Server] Failed to create checkpoint for ${attemptId}:`, error);
       }
+    } else {
+      // Clear checkpoint tracking on failure
+      checkpointManager.clearAttemptCheckpoint(attemptId);
     }
-
-    // Clean up in-memory tracking
-    attemptSessionIds.delete(attemptId);
-    attemptGitCommits.delete(attemptId);
 
     console.log(`[Server] Emitting attempt:finished for ${attemptId} with status ${status}`);
     io.to(`attempt:${attemptId}`).emit('attempt:finished', {
@@ -399,9 +362,9 @@ app.prepare().then(() => {
   const shutdown = async (signal: string) => {
     console.log(`\n> ${signal} received, shutting down gracefully...`);
 
-    // Kill all Claude processes first
-    processManager.killAll();
-    console.log('> Killed all Claude processes');
+    // Cancel all Claude agents first
+    agentManager.cancelAll();
+    console.log('> Cancelled all Claude agents');
 
     // Close all socket connections
     io.close(() => {

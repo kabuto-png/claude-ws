@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
+import { query } from '@anthropic-ai/claude-agent-sdk';
 import { db, schema } from '@/lib/db';
 import { eq, and, gt } from 'drizzle-orm';
-import { rewindToCommit } from '@/lib/git-snapshot';
+import { checkpointManager } from '@/lib/checkpoint-manager';
 
 // POST /api/checkpoints/rewind
 // Body: { checkpointId: string, rewindFiles?: boolean }
 // Deletes all attempts/logs/checkpoints after this checkpoint
-// Optionally rewinds git to the checkpoint's commit
+// Optionally rewinds files using SDK rewindFiles()
 // Returns the checkpoint's sessionId for resuming
 export async function POST(request: Request) {
   try {
@@ -25,24 +26,49 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Checkpoint not found' }, { status: 404 });
     }
 
-    // Get task and project for git rewind
+    // Get task and project for SDK rewind
     const task = await db.query.tasks.findFirst({
       where: eq(schema.tasks.id, checkpoint.taskId),
     });
 
-    let gitRewindResult = null;
+    let sdkRewindResult: { success: boolean; error?: string } | null = null;
 
-    // Rewind git if requested and commit hash exists
-    if (rewindFiles && checkpoint.gitCommitHash && task) {
+    // Rewind files using SDK if requested and checkpoint UUID exists
+    // Note: gitCommitHash field now stores SDK checkpoint UUID
+    if (rewindFiles && checkpoint.gitCommitHash && checkpoint.sessionId && task) {
       const project = await db.query.projects.findFirst({
         where: eq(schema.projects.id, task.projectId),
       });
 
       if (project) {
-        gitRewindResult = rewindToCommit(project.path, checkpoint.gitCommitHash);
-        if (!gitRewindResult.success) {
-          console.error('[Rewind] Git rewind failed:', gitRewindResult.error);
-          // Continue with conversation rewind even if git fails
+        try {
+          // Get checkpointing options
+          const checkpointOptions = checkpointManager.getCheckpointingOptions();
+
+          // Resume the session with empty prompt to rewind files
+          const rewindQuery = query({
+            prompt: '', // Empty prompt to open connection
+            options: {
+              cwd: project.path,
+              resume: checkpoint.sessionId,
+              ...checkpointOptions,
+            },
+          });
+
+          // Call rewindFiles with checkpoint UUID
+          // We need to iterate to open the connection first
+          for await (const _ of rewindQuery) {
+            await rewindQuery.rewindFiles(checkpoint.gitCommitHash);
+            break;
+          }
+
+          sdkRewindResult = { success: true };
+          console.log(`[Rewind] SDK rewind successful for checkpoint ${checkpointId}`);
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          console.error('[Rewind] SDK rewind failed:', errorMessage);
+          sdkRewindResult = { success: false, error: errorMessage };
+          // Continue with conversation rewind even if SDK rewind fails
         }
       }
     }
@@ -73,7 +99,7 @@ export async function POST(request: Request) {
       sessionId: checkpoint.sessionId,
       taskId: checkpoint.taskId,
       attemptId: checkpoint.attemptId,
-      gitRewind: gitRewindResult,
+      sdkRewind: sdkRewindResult,
     });
   } catch (error) {
     console.error('Failed to rewind checkpoint:', error);

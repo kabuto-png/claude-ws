@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { RotateCcw, Clock, MessageSquare, Loader2, GitCommit } from 'lucide-react';
+import { RotateCcw, Clock, MessageSquare, Loader2, FileCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useInteractiveCommandStore } from '@/stores/interactive-command-store';
 import { cn } from '@/lib/utils';
@@ -71,17 +71,17 @@ export function CheckpointList({ taskId }: CheckpointListProps) {
       const data = await res.json();
 
       // Show success message with details
-      const hasGitRewind = data.gitRewind?.success;
+      const hasFileRewind = data.sdkRewind?.success;
       toast.success(
-        hasGitRewind
+        hasFileRewind
           ? `Rewound conversation & files to checkpoint`
           : `Rewound conversation to checkpoint`,
         {
-          description: hasGitRewind
-            ? `Git restored to ${selectedCheckpoint?.gitCommitHash?.substring(0, 7)}`
+          description: hasFileRewind
+            ? `Files restored via SDK checkpointing`
             : selectedCheckpoint?.gitCommitHash
-              ? 'Git rewind failed, conversation only'
-              : 'No git snapshot for this checkpoint'
+              ? 'File rewind failed, conversation only'
+              : 'No file checkpoint for this attempt'
         }
       );
 
@@ -184,9 +184,9 @@ export function CheckpointList({ taskId }: CheckpointListProps) {
                 {checkpoint.messageCount} messages
               </span>
               {checkpoint.gitCommitHash && (
-                <span className="flex items-center gap-1 text-green-600 dark:text-green-400" title={`Git: ${checkpoint.gitCommitHash}`}>
-                  <GitCommit className="size-3" />
-                  {checkpoint.gitCommitHash.substring(0, 7)}
+                <span className="flex items-center gap-1 text-green-600 dark:text-green-400" title={`Checkpoint: ${checkpoint.gitCommitHash}`}>
+                  <FileCheck className="size-3" />
+                  File checkpoint
                 </span>
               )}
             </div>
