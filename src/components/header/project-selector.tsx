@@ -88,6 +88,15 @@ export function ProjectSelectorContent({ onAddProject }: ProjectSelectorProps) {
                   selectAllProjects(); // First clear selection
                   toggleProjectSelection(project.id); // Then select only this project
                 }}
+                onMouseDown={(e) => {
+                  // Middle-click opens project in new tab
+                  if (e.button === 1) {
+                    e.preventDefault();
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('project', project.id);
+                    window.open(url.toString(), '_blank');
+                  }
+                }}
               >
                 <div className="flex-1 flex items-center gap-2 min-w-0">
                   <input

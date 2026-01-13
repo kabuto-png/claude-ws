@@ -36,6 +36,42 @@ function KanbanApp() {
     fetchProjects();
   }, [fetchProjects]);
 
+  // Read project from URL and select it
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const projectId = urlParams.get('project');
+
+    if (projectId && projects.length > 0) {
+      // Check if project exists
+      const projectExists = projects.some(p => p.id === projectId);
+      if (projectExists) {
+        // Only set if not already selected to avoid loops
+        const currentIds = useProjectStore.getState().selectedProjectIds;
+        if (currentIds.length !== 1 || currentIds[0] !== projectId) {
+          useProjectStore.getState().setSelectedProjectIds([projectId]);
+        }
+      }
+    }
+  }, [projects]);
+
+  // Update URL when project selection changes
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const url = new URL(window.location.href);
+
+    if (selectedProjectIds.length === 1) {
+      url.searchParams.set('project', selectedProjectIds[0]);
+    } else {
+      url.searchParams.delete('project');
+    }
+
+    // Update URL without triggering a navigation
+    window.history.replaceState({}, '', url.toString());
+  }, [selectedProjectIds]);
+
   // Fetch tasks when selectedProjectIds changes
   useEffect(() => {
     if (!projectLoading) {
