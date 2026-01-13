@@ -105,7 +105,7 @@ export function CommandSelector({
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         setSelectedIndex((i) => Math.max(i - 1, 0));
-      } else if (e.key === 'Enter') {
+      } else if (e.key === 'Tab' || e.key === 'Enter') {
         e.preventDefault();
         const selected = filteredCommands[selectedIndex];
         if (selected) {
@@ -194,7 +194,7 @@ export function CommandSelector({
       <div className="px-3 py-1.5 border-t bg-muted/30 text-xs text-muted-foreground">
         <kbd className="px-1 bg-muted rounded">↑↓</kbd> navigate
         <span className="mx-2">·</span>
-        <kbd className="px-1 bg-muted rounded">Enter</kbd> select
+        <kbd className="px-1 bg-muted rounded">Tab</kbd> select
         <span className="mx-2">·</span>
         <kbd className="px-1 bg-muted rounded">Esc</kbd> close
       </div>

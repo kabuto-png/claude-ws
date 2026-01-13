@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { SocketProvider } from '@/components/providers/socket-provider';
 import { SearchProvider } from '@/components/search/search-provider';
 import { Header } from '@/components/header';
@@ -24,8 +24,14 @@ function KanbanApp() {
   const { projects, selectedProjectIds, fetchProjects, loading: projectLoading } = useProjectStore();
   const { selectedTask, fetchTasks, setSelectedTask, setPendingAutoStartTask } = useTaskStore();
   const toggleSidebar = useSidebarStore((s) => s.toggleSidebar);
-  const hasOpenTabs = useSidebarStore((s) => s.openTabs.length > 0);
+  const isOpen = useSidebarStore((s) => s.isOpen);
+  const setIsOpen = useSidebarStore((s) => s.setIsOpen);
+  const openTabs = useSidebarStore((s) => s.openTabs);
+  const activeTabId = useSidebarStore((s) => s.activeTabId);
+  const closeTab = useSidebarStore((s) => s.closeTab);
+  const hasOpenTabs = openTabs.length > 0;
   const diffFile = useSidebarStore((s) => s.diffFile);
+  const closeDiff = useSidebarStore((s) => s.closeDiff);
 
   // Auto-show setup when no projects
   const autoShowSetup = !projectLoading && projects.length === 0;
@@ -87,6 +93,18 @@ function KanbanApp() {
     }
   };
 
+  // Handle close tab with unsaved changes warning
+  const handleCloseTab = useCallback((tabId: string) => {
+    const tab = openTabs.find(t => t.id === tabId);
+    if (tab?.isDirty) {
+      const fileName = tab.filePath.split('/').pop() || tab.filePath;
+      if (!confirm(`"${fileName}" has unsaved changes. Close anyway?`)) {
+        return;
+      }
+    }
+    closeTab(tabId);
+  }, [openTabs, closeTab]);
+
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -106,17 +124,39 @@ function KanbanApp() {
         e.preventDefault();
         toggleSidebar();
       }
-      // Escape: Close panels
+      // Escape: Close tabs/panels in priority order
+      // Priority: file tab > diff panel > task detail > sidebar
+      // Note: Cmd+W cannot be overridden in browsers, so we use Escape instead
       if (e.key === 'Escape') {
+        // 1. Close active file tab if any
+        if (activeTabId && openTabs.length > 0) {
+          handleCloseTab(activeTabId);
+          return;
+        }
+
+        // 2. Close diff panel if open
+        if (diffFile) {
+          closeDiff();
+          return;
+        }
+
+        // 3. Close task detail panel if open
         if (selectedTask) {
-          useTaskStore.getState().setSelectedTask(null);
+          setSelectedTask(null);
+          return;
+        }
+
+        // 4. Close sidebar if open
+        if (isOpen) {
+          setIsOpen(false);
+          return;
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedTask, toggleSidebar]);
+  }, [selectedTask, toggleSidebar, activeTabId, openTabs, handleCloseTab, diffFile, closeDiff, isOpen, setIsOpen, setSelectedTask]);
 
   if (projectLoading) {
     return (

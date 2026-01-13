@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
@@ -42,23 +42,9 @@ export function FileTabsPanel() {
     closeAllTabs();
   }, [openTabs, closeAllTabs]);
 
-  // Keyboard shortcut: Cmd+W to close active tab
-  useEffect(() => {
-    if (openTabs.length === 0) return;
+  // Note: Cmd+W keyboard shortcut is now handled globally in page.tsx
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'w') {
-        e.preventDefault();
-        if (activeTabId) {
-          handleCloseTab(activeTabId);
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [openTabs.length, activeTabId, handleCloseTab]);
-
-  // If no open tabs, don't render (must be after all hooks)
+  // If no open tabs, don't render
   if (openTabs.length === 0) {
     return null;
   }
