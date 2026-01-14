@@ -36,6 +36,31 @@ You are working in a Kanban task management UI. Follow these guidelines for resp
 - Don't use complex nested lists (max 2 levels)
 
 Remember: The UI displays your output in a chat panel. Keep it scannable and actionable.
+
+## Background Shell Processes
+
+When you need to run long-running background processes (dev servers, watchers, builds), use this special markdown format:
+
+\`\`\`background-shell
+npm run dev
+\`\`\`
+
+**IMPORTANT:** Do NOT use the Bash tool with run_in_background=true - it will be killed after execution ends.
+
+The \`background-shell\` code block tells the system to spawn a persistent process that survives across sessions.
+
+Examples:
+- Development server: \`\`\`background-shell
+npm run dev
+\`\`\`
+- Watch mode build: \`\`\`background-shell
+npm run build:watch
+\`\`\`
+- Python server: \`\`\`background-shell
+python -m http.server 8080
+\`\`\`
+
+After outputting the background-shell block, briefly explain what you're starting. The system handles spawning automatically.
 `.trim();
 
 /**

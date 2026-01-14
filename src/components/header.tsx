@@ -20,6 +20,8 @@ import {
 import { useTaskStore } from '@/stores/task-store';
 import { useSidebarStore } from '@/stores/sidebar-store';
 import { useRightSidebarStore } from '@/stores/right-sidebar-store';
+import { useShellStore } from '@/stores/shell-store';
+import { useProjectStore } from '@/stores/project-store';
 import { ProjectSelector, ProjectSelectorContent } from '@/components/header/project-selector';
 
 interface HeaderProps {
@@ -32,7 +34,17 @@ export function Header({ onCreateTask, onOpenSettings, onAddProject }: HeaderPro
   const { tasks } = useTaskStore();
   const { isOpen: sidebarOpen, toggleSidebar } = useSidebarStore();
   const { isOpen: rightSidebarOpen, toggleRightSidebar } = useRightSidebarStore();
+  const { shells } = useShellStore();
+  const { activeProjectId, selectedProjectIds } = useProjectStore();
   const [searchOpen, setSearchOpen] = useState(false);
+
+  // Count running shells for current project
+  const currentProjectId = activeProjectId || selectedProjectIds[0];
+  const runningShellCount = currentProjectId
+    ? Array.from(shells.values()).filter(
+        (s) => s.projectId === currentProjectId && s.isRunning
+      ).length
+    : 0;
 
   return (
     <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
@@ -135,13 +147,21 @@ export function Header({ onCreateTask, onOpenSettings, onAddProject }: HeaderPro
                   variant={rightSidebarOpen ? 'secondary' : 'ghost'}
                   size="icon"
                   onClick={toggleRightSidebar}
-                  className="shrink-0"
+                  className="shrink-0 relative"
                 >
                   <PanelRight className="h-4 w-4" />
+                  {runningShellCount > 0 && (
+                    <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 flex items-center justify-center text-[10px] font-medium bg-green-500 text-white rounded-full">
+                      {runningShellCount}
+                    </span>
+                  )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Toggle actions</p>
+                <p>
+                  Toggle actions
+                  {runningShellCount > 0 && ` (${runningShellCount} shell${runningShellCount !== 1 ? 's' : ''} running)`}
+                </p>
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>

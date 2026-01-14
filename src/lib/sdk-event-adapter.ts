@@ -100,6 +100,15 @@ export function isValidSDKMessage(msg: unknown): msg is SDKMessage {
 }
 
 /**
+ * Background shell detection result
+ */
+export interface BackgroundShellInfo {
+  toolUseId: string;
+  command: string;
+  description?: string;
+}
+
+/**
  * Adaptation result with extracted metadata
  */
 export interface AdaptedMessage {
@@ -110,6 +119,7 @@ export interface AdaptedMessage {
     toolUseId: string;
     questions: unknown[];
   };
+  backgroundShell?: BackgroundShellInfo;
 }
 
 /**
@@ -138,6 +148,53 @@ function detectAskUserQuestion(
         toolUseId: block.id || '',
         questions: (block.input as { questions?: unknown[] })?.questions || [],
       };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Detect background shell request from markdown code block or Bash tool_use
+ *
+ * Primary: ```background-shell\ncommand\n``` in text blocks
+ * Fallback: Bash tool_use with run_in_background=true (deprecated, SDK will kill it)
+ */
+function detectBackgroundShell(
+  content: SDKContentBlock[]
+): BackgroundShellInfo | undefined {
+  // Primary detection: markdown code block with background-shell language
+  // This avoids SDK executing the command (SDK ignores text blocks)
+  for (const block of content) {
+    if (block.type === 'text' && block.text) {
+      // Match: ```background-shell\ncommand\n``` (supports multiline commands)
+      const regex = /```background-shell\n([\s\S]+?)\n```/;
+      const match = block.text.match(regex);
+
+      if (match) {
+        const command = match[1].trim();
+        if (command) {
+          return {
+            toolUseId: `bg-shell-${Date.now()}`, // Generate ID (not from tool_use)
+            command,
+            description: 'Background shell from markdown block',
+          };
+        }
+      }
+    }
+  }
+
+  // Fallback: Bash tool_use with run_in_background=true
+  // Note: SDK will still execute this command, causing duplicate execution
+  for (const block of content) {
+    if (block.type === 'tool_use' && block.name === 'Bash') {
+      const input = block.input as { command?: string; run_in_background?: boolean; description?: string } | undefined;
+      if (input?.run_in_background === true && input?.command) {
+        return {
+          toolUseId: block.id || '',
+          command: input.command,
+          description: input.description,
+        };
+      }
     }
   }
   return undefined;
@@ -180,6 +237,11 @@ export function adaptSDKMessage(message: SDKMessage): AdaptedMessage {
       const askQuestion = detectAskUserQuestion(asst.message.content);
       if (askQuestion) {
         result.askUserQuestion = askQuestion;
+      }
+      // Check for background shell (Bash with run_in_background=true)
+      const bgShell = detectBackgroundShell(asst.message.content);
+      if (bgShell) {
+        result.backgroundShell = bgShell;
       }
       break;
     }

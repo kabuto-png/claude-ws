@@ -9,7 +9,10 @@ import { Separator } from '@/components/ui/separator';
 import { PromptInput, PromptInputRef } from './prompt-input';
 import { ConversationView } from './conversation-view';
 import { InteractiveCommandOverlay, QuestionPrompt } from './interactive-command';
+import { ShellToggleBar, ShellExpandedPanel } from './task-shell-indicator';
+import { useShellStore } from '@/stores/shell-store';
 import { useTaskStore } from '@/stores/task-store';
+import { useProjectStore } from '@/stores/project-store';
 import { useAttemptStream } from '@/hooks/use-attempt-stream';
 import { useInteractiveCommandStore } from '@/stores/interactive-command-store';
 import { useAttachmentStore } from '@/stores/attachment-store';
@@ -38,6 +41,7 @@ const STATUSES: TaskStatus[] = ['todo', 'in_progress', 'in_review', 'done', 'can
 
 export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
   const { selectedTask, setSelectedTask, updateTaskStatus, setTaskChatInit, pendingAutoStartTask, setPendingAutoStartTask, moveTaskToInProgress } = useTaskStore();
+  const { activeProjectId, selectedProjectIds } = useProjectStore();
   const { getPendingFiles } = useAttachmentStore();
   const [conversationKey, setConversationKey] = useState(0);
   const [width, setWidth] = useState(DEFAULT_WIDTH);
@@ -46,8 +50,10 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [shellPanelExpanded, setShellPanelExpanded] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const promptInputRef = useRef<PromptInputRef>(null);
+  const { shells } = useShellStore();
   const hasAutoStartedRef = useRef(false);
   const lastCompletedTaskRef = useRef<string | null>(null);
 
@@ -186,9 +192,39 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
     setShowStatusDropdown(false);
     setHasSentFirstMessage(false);
     setCurrentAttemptFiles([]);
+    setShellPanelExpanded(false);
     lastCompletedTaskRef.current = null;
     hasAutoStartedRef.current = false;
   }, [selectedTask?.id]);
+
+  // Get current project ID and check for shells
+  const currentProjectId = activeProjectId || selectedProjectIds[0];
+  const hasShells = currentProjectId
+    ? Array.from(shells.values()).some((s) => s.projectId === currentProjectId)
+    : false;
+
+  // Arrow down to open shell panel (when typing in input at end)
+  useEffect(() => {
+    if (shellPanelExpanded || !hasShells) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const isTyping = target.tagName === 'TEXTAREA' || target.tagName === 'INPUT';
+
+      if (e.key === 'ArrowDown' && isTyping && !e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        const input = target as HTMLTextAreaElement | HTMLInputElement;
+        const isAtEnd = input.selectionStart === input.value.length;
+
+        if (isAtEnd) {
+          e.preventDefault();
+          setShellPanelExpanded(true);
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [shellPanelExpanded, hasShells]);
 
   if (!selectedTask) {
     return null;
@@ -356,6 +392,12 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
               onCancel={cancelQuestion}
             />
           </div>
+        ) : shellPanelExpanded && currentProjectId ? (
+          /* Shell Panel - replaces input when expanded */
+          <ShellExpandedPanel
+            projectId={currentProjectId}
+            onClose={() => setShellPanelExpanded(false)}
+          />
         ) : (
           <div className="p-3 sm:p-4">
             <PromptInput
@@ -371,6 +413,15 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
           </div>
         )}
       </div>
+
+      {/* Shell Toggle Bar - always visible when shells exist */}
+      {currentProjectId && (
+        <ShellToggleBar
+          projectId={currentProjectId}
+          isExpanded={shellPanelExpanded}
+          onToggle={() => setShellPanelExpanded(!shellPanelExpanded)}
+        />
+      )}
     </div>
   );
 }
