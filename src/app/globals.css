@@ -423,3 +423,157 @@
   padding-left: 8px !important;
   border-left: none !important;
 }
+
+/* Prose styles for markdown rendering */
+.prose {
+  color: oklch(var(--color-foreground));
+  max-width: 65ch;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+
+.prose h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 1.5rem;
+  margin-bottom: 1rem;
+  color: oklch(var(--color-foreground));
+}
+
+.prose h2 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-top: 1.25rem;
+  margin-bottom: 0.75rem;
+  color: oklch(var(--color-foreground));
+}
+
+.prose h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: oklch(var(--color-foreground));
+}
+
+.prose h4, .prose h5, .prose h6 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  color: oklch(var(--color-foreground));
+}
+
+.prose p {
+  margin-bottom: 1rem;
+}
+
+.prose a {
+  color: oklch(0.653 0.181 252);
+  text-decoration: underline;
+}
+
+.prose a:hover {
+  color: oklch(0.7 0.2 252);
+}
+
+.prose strong {
+  font-weight: 700;
+  color: oklch(var(--color-foreground));
+}
+
+.prose em {
+  font-style: italic;
+}
+
+.prose code {
+  background-color: oklch(var(--color-muted));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.875em;
+  color: oklch(0.72 0.16 295);
+}
+
+.prose pre {
+  background-color: #282c34;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+.prose pre code {
+  background-color: transparent;
+  padding: 0;
+  color: oklch(var(--color-foreground));
+}
+
+.prose ul, .prose ol {
+  margin-bottom: 1rem;
+  padding-left: 1.5rem;
+}
+
+.prose li {
+  margin-bottom: 0.25rem;
+}
+
+.prose ul > li {
+  list-style-type: disc;
+}
+
+.prose ol > li {
+  list-style-type: decimal;
+}
+
+.prose blockquote {
+  border-left: 4px solid oklch(var(--color-primary));
+  padding-left: 1rem;
+  margin-bottom: 1rem;
+  font-style: italic;
+  color: oklch(var(--color-muted-foreground));
+}
+
+.prose hr {
+  border: none;
+  border-top: 1px solid oklch(var(--color-border));
+  margin: 1.5rem 0;
+}
+
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+}
+
+.prose th, .prose td {
+  border: 1px solid oklch(var(--color-border));
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.prose th {
+  background-color: oklch(var(--color-muted));
+  font-weight: 600;
+}
+
+.prose img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.5rem;
+  margin: 1rem 0;
+}
+
+/* Dark mode prose adjustments */
+.dark .prose code {
+  background-color: oklch(0.25 0 0);
+  color: oklch(0.78 0.15 250);
+}
+
+.dark .prose pre {
+  background-color: oklch(0.2 0 0);
+}
+
+.dark .prose a {
+  color: oklch(0.7 0.2 250);
+}

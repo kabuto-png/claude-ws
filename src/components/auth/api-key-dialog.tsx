@@ -12,6 +12,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
+// Extend global types for fetch patching
+declare global {
+  interface Window {
+    fetch: typeof fetch & { _apiKeyPatched?: boolean };
+  }
+}
+
 const API_KEY_STORAGE_KEY = 'claude-kanban:api-key';
 
 interface ApiKeyDialogProps {

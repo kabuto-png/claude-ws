@@ -12,10 +12,12 @@ import { SetupDialog } from '@/components/settings/setup-dialog';
 import { SidebarPanel, FileTabsPanel, DiffPreviewPanel } from '@/components/sidebar';
 import { RightSidebar } from '@/components/right-sidebar';
 import { ApiKeyProvider, ApiKeyDialog, useApiKeyCheck } from '@/components/auth/api-key-dialog';
+import { ComponentList } from '@/components/agent-factory/component-list';
 import { useProjectStore } from '@/stores/project-store';
 import { useTaskStore } from '@/stores/task-store';
 import { Task } from '@/types';
 import { useSidebarStore } from '@/stores/sidebar-store';
+import { useAgentFactoryUIStore } from '@/stores/agent-factory-ui-store';
 
 function KanbanApp() {
   const [createTaskOpen, setCreateTaskOpen] = useState(false);
@@ -24,6 +26,7 @@ function KanbanApp() {
   const [apiKeyRefresh, setApiKeyRefresh] = useState(0);
 
   const { needsApiKey } = useApiKeyCheck(apiKeyRefresh);
+  const { open: agentFactoryOpen, setOpen: setAgentFactoryOpen } = useAgentFactoryUIStore();
 
   const { projects, selectedProjectIds, fetchProjects, loading: projectLoading } = useProjectStore();
   const { selectedTask, fetchTasks, setSelectedTask, setPendingAutoStartTask } = useTaskStore();
@@ -234,6 +237,13 @@ function KanbanApp() {
           fetchProjects();
         }}
       />
+
+      {/* Agent Factory Dialog */}
+      {agentFactoryOpen && (
+        <div className="fixed inset-0 z-50 bg-background">
+          <ComponentList />
+        </div>
+      )}
 
       {/* Right Sidebar - actions panel */}
       <RightSidebar
