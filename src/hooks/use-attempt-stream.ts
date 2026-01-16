@@ -38,7 +38,7 @@ interface UseAttemptStreamResult {
   currentPrompt: string | null;
   isRunning: boolean;
   activeQuestion: ActiveQuestion | null;
-  answerQuestion: (answer: string) => void;
+  answerQuestion: (questions: Question[], answers: Record<string, string>) => void;
   cancelQuestion: () => void;
 }
 
@@ -372,22 +372,26 @@ export function useAttemptStream(
     socket.emit('attempt:start', { taskId, prompt, displayPrompt, fileIds });
   }, [isConnected]);
 
-  const answerQuestion = useCallback((answer: string) => {
+  const answerQuestion = useCallback((questions: Question[], answers: Record<string, string>) => {
     const socket = socketRef.current;
     if (!socket || !activeQuestion) return;
-    socket.once('attempt:started', (data: any) => {
-      setCurrentAttemptId(data.attemptId);
-      setIsRunning(true);
-      socket.emit('attempt:subscribe', { attemptId: data.attemptId });
+    // Send SDK format: { attemptId, questions, answers }
+    // The agent-manager's canUseTool callback will resume streaming
+    socket.emit('question:answer', {
+      attemptId: activeQuestion.attemptId,
+      questions,
+      answers,
     });
-    socket.emit('question:answer', { attemptId: activeQuestion.attemptId, answer });
-    setActiveQuestion(null);
+    // Delay hiding the question dialog to prevent click event from hitting Stop button
+    // (Stop button renders at similar position when PromptInput replaces QuestionPrompt)
+    setTimeout(() => setActiveQuestion(null), 250);
   }, [activeQuestion]);
 
   const cancelQuestion = useCallback(() => {
     const socket = socketRef.current;
     if (!socket || !activeQuestion) return;
-    socket.emit('question:answer', { attemptId: activeQuestion.attemptId, answer: '\x1b' });
+    // Send empty answers to signal cancellation
+    socket.emit('question:cancel', { attemptId: activeQuestion.attemptId });
     setActiveQuestion(null);
   }, [activeQuestion]);
 

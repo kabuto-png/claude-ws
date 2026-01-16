@@ -191,80 +191,41 @@ app.prepare().then(async () => {
       socket.leave(`attempt:${data.attemptId}`);
     });
 
-    // Handle AskUserQuestion response - start a new attempt with --resume
+    // Handle AskUserQuestion response - resolve pending canUseTool callback
     socket.on(
       'question:answer',
-      async (data: { attemptId: string; answer: string }) => {
-        const { attemptId, answer } = data;
-        console.log(`[Server] Received answer for ${attemptId}: ${answer}`);
+      async (data: { attemptId: string; questions: unknown[]; answers: Record<string, string> }) => {
+        const { attemptId, questions, answers } = data;
+        console.log(`[Server] Received answer for ${attemptId}:`, answers);
 
-        // Get session ID for the original attempt
-        const sessionId = await sessionManager.getSessionId(attemptId);
-
-        if (!sessionId) {
-          console.error(`[Server] Session not found for ${attemptId}`);
-          socket.emit('error', { message: 'Session not found' });
-          return;
+        // Check if there's a pending question (canUseTool callback waiting)
+        if (agentManager.hasPendingQuestion(attemptId)) {
+          // Resolve the pending Promise - SDK will resume streaming
+          const success = agentManager.answerQuestion(attemptId, questions, answers);
+          if (success) {
+            console.log(`[Server] Resumed streaming for ${attemptId}`);
+          } else {
+            console.error(`[Server] Failed to answer question for ${attemptId}`);
+            socket.emit('error', { message: 'Failed to answer question' });
+          }
+        } else {
+          // Fallback: No pending question (legacy behavior or reconnection)
+          console.warn(`[Server] No pending question for ${attemptId}, attempting legacy flow`);
+          socket.emit('error', { message: 'No pending question found' });
         }
+      }
+    );
 
-        try {
-          // Get the original attempt to find taskId
-          const originalAttempt = await db.query.attempts.findFirst({
-            where: eq(schema.attempts.id, attemptId),
-          });
+    // Handle AskUserQuestion cancellation
+    socket.on(
+      'question:cancel',
+      async (data: { attemptId: string }) => {
+        const { attemptId } = data;
+        console.log(`[Server] Cancelling question for ${attemptId}`);
 
-          if (!originalAttempt) {
-            socket.emit('error', { message: 'Attempt not found' });
-            return;
-          }
-
-          // Get task and project info
-          const task = await db.query.tasks.findFirst({
-            where: eq(schema.tasks.id, originalAttempt.taskId),
-          });
-
-          if (!task) {
-            socket.emit('error', { message: 'Task not found' });
-            return;
-          }
-
-          const project = await db.query.projects.findFirst({
-            where: eq(schema.projects.id, task.projectId),
-          });
-
-          if (!project) {
-            socket.emit('error', { message: 'Project not found' });
-            return;
-          }
-
-          // Create new attempt with the answer as prompt
-          const newAttemptId = nanoid();
-          await db.insert(schema.attempts).values({
-            id: newAttemptId,
-            taskId: originalAttempt.taskId,
-            prompt: answer,
-            displayPrompt: `Answer: ${answer}`,
-            status: 'running',
-          });
-
-          // Join new attempt room
-          socket.join(`attempt:${newAttemptId}`);
-
-          // Start new query with resume (continuing current conversation)
-          agentManager.start({
-            attemptId: newAttemptId,
-            projectPath: project.path,
-            prompt: answer,
-            sessionOptions: { resume: sessionId },
-          });
-
-          console.log(`[Server] Started continuation attempt ${newAttemptId} with session ${sessionId}`);
-
-          socket.emit('attempt:started', { attemptId: newAttemptId, taskId: originalAttempt.taskId });
-          io.emit('task:started', { taskId: originalAttempt.taskId });
-        } catch (error) {
-          console.error(`[Server] Error starting continuation:`, error);
-          socket.emit('error', { message: 'Failed to continue conversation' });
+        if (agentManager.hasPendingQuestion(attemptId)) {
+          agentManager.cancelQuestion(attemptId);
+          console.log(`[Server] Question cancelled for ${attemptId}`);
         }
       }
     );

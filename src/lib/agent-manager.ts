@@ -20,6 +20,18 @@ interface AgentInstance {
   sessionId?: string;
 }
 
+// Pending question resolver type
+interface PendingQuestion {
+  toolUseId: string;
+  resolve: (answer: QuestionAnswer | null) => void;
+}
+
+// Answer format for AskUserQuestion tool
+interface QuestionAnswer {
+  questions: unknown[];
+  answers: Record<string, string>;
+}
+
 interface AgentEvents {
   json: (data: { attemptId: string; data: ClaudeOutput }) => void;
   stderr: (data: { attemptId: string; content: string }) => void;
@@ -45,6 +57,7 @@ export interface AgentStartOptions {
  */
 class AgentManager extends EventEmitter {
   private agents = new Map<string, AgentInstance>();
+  private pendingQuestions = new Map<string, PendingQuestion>();
 
   constructor() {
     super();
@@ -125,57 +138,106 @@ class AgentManager extends EventEmitter {
         ...(sessionOptions?.resumeSessionAt ? { resumeSessionAt: sessionOptions.resumeSessionAt } : {}),
         ...checkpointOptions,
         abortController: controller,
+        // canUseTool callback - pauses streaming when AskUserQuestion is called
+        canUseTool: async (toolName: string, input: Record<string, unknown>) => {
+          // Handle AskUserQuestion tool - pause and wait for user input
+          if (toolName === 'AskUserQuestion') {
+            // Prevent duplicate questions for same attempt
+            if (this.pendingQuestions.has(attemptId)) {
+              console.warn(`[AgentManager] Duplicate question for ${attemptId}, rejecting`);
+              return { behavior: 'deny' as const, message: 'Duplicate question' };
+            }
+
+            const toolUseId = `ask-${Date.now()}`;
+            const questions = (input.questions as unknown[]) || [];
+
+            // Emit question event to frontend (streaming is paused here)
+            this.emit('question', { attemptId, toolUseId, questions });
+
+            // Wait for user answer (no timeout - user can take as long as needed)
+            const answer = await new Promise<QuestionAnswer | null>((resolve) => {
+              this.pendingQuestions.set(attemptId, { toolUseId, resolve });
+            });
+
+            // Clean up pending question
+            this.pendingQuestions.delete(attemptId);
+
+            // Check if cancellation (null/empty answers)
+            if (!answer || Object.keys(answer.answers).length === 0) {
+              return { behavior: 'deny' as const, message: 'User cancelled' };
+            }
+
+            // Return allow with user's answers (cast to Record<string, unknown> for SDK)
+            return {
+              behavior: 'allow' as const,
+              updatedInput: answer as unknown as Record<string, unknown>,
+            };
+          }
+
+          // Auto-allow all other tools (bypassPermissions mode)
+          return { behavior: 'allow' as const, updatedInput: input };
+        },
       };
 
       const response = query({ prompt, options: queryOptions });
 
-      // Stream SDK messages
+      // Stream SDK messages with per-message error handling
+      // The SDK's internal partial-json-parser can throw on incomplete JSON
       for await (const message of response) {
         if (controller.signal.aborted) {
           console.log(`[AgentManager] Query aborted for ${attemptId}`);
           break;
         }
 
-        // Validate SDK message structure
-        if (!isValidSDKMessage(message)) {
-          console.error(`[AgentManager] Invalid SDK message:`, message);
-          continue;
+        try {
+          // Validate SDK message structure
+          if (!isValidSDKMessage(message)) {
+            console.error(`[AgentManager] Invalid SDK message:`, message);
+            continue;
+          }
+
+          // Adapt SDK message to internal format
+          const adapted = adaptSDKMessage(message);
+
+          // Handle session ID capture
+          if (adapted.sessionId) {
+            instance.sessionId = adapted.sessionId;
+            await sessionManager.saveSession(attemptId, adapted.sessionId);
+            if (controller.signal.aborted) break; // Check after async operation
+          }
+
+          // Handle checkpoint UUID capture
+          if (adapted.checkpointUuid) {
+            checkpointManager.captureCheckpointUuid(attemptId, adapted.checkpointUuid);
+          }
+
+          // Note: AskUserQuestion is now handled via canUseTool callback
+          // which properly pauses streaming until user responds
+
+          // Handle background shell (Bash with run_in_background=true)
+          if (adapted.backgroundShell) {
+            this.emit('backgroundShell', {
+              attemptId,
+              shell: adapted.backgroundShell,
+            });
+          }
+
+          // Emit adapted message
+          this.emit('json', { attemptId, data: adapted.output });
+        } catch (messageError) {
+          // Handle per-message errors (e.g., SDK's partial-json-parser failures)
+          // Log but continue streaming - don't let one bad message kill the stream
+          const errorMsg = messageError instanceof Error ? messageError.message : 'Unknown message error';
+          console.warn(`[AgentManager] Error processing message for ${attemptId}:`, errorMsg);
+
+          // Only emit if it's a significant error (not just parsing issues)
+          if (errorMsg.includes('Unexpected end of JSON')) {
+            // This is a common streaming artifact - log but don't spam stderr
+            console.debug(`[AgentManager] Partial JSON received, continuing...`);
+          } else {
+            this.emit('stderr', { attemptId, content: `Warning: ${errorMsg}` });
+          }
         }
-
-        // Adapt SDK message to internal format
-        const adapted = adaptSDKMessage(message);
-
-        // Handle session ID capture
-        if (adapted.sessionId) {
-          instance.sessionId = adapted.sessionId;
-          await sessionManager.saveSession(attemptId, adapted.sessionId);
-          if (controller.signal.aborted) break; // Check after async operation
-        }
-
-        // Handle checkpoint UUID capture
-        if (adapted.checkpointUuid) {
-          checkpointManager.captureCheckpointUuid(attemptId, adapted.checkpointUuid);
-        }
-
-        // Handle AskUserQuestion
-        if (adapted.askUserQuestion) {
-          this.emit('question', {
-            attemptId,
-            toolUseId: adapted.askUserQuestion.toolUseId,
-            questions: adapted.askUserQuestion.questions,
-          });
-        }
-
-        // Handle background shell (Bash with run_in_background=true)
-        if (adapted.backgroundShell) {
-          this.emit('backgroundShell', {
-            attemptId,
-            shell: adapted.backgroundShell,
-          });
-        }
-
-        // Emit adapted message
-        this.emit('json', { attemptId, data: adapted.output });
       }
 
       // Query completed successfully
@@ -198,8 +260,51 @@ class AgentManager extends EventEmitter {
   }
 
   /**
-   * Send input to a running agent (for AskUserQuestion responses)
-   * SDK handles this via continuation with new prompt
+   * Answer a pending AskUserQuestion
+   * Resolves the waiting canUseTool callback and resumes streaming
+   */
+  answerQuestion(attemptId: string, questions: unknown[], answers: Record<string, string>): boolean {
+    const pending = this.pendingQuestions.get(attemptId);
+    if (!pending) {
+      console.warn(`[AgentManager] No pending question for ${attemptId}`);
+      return false;
+    }
+
+    // Resolve the pending Promise - SDK will resume streaming
+    pending.resolve({ questions, answers });
+    this.pendingQuestions.delete(attemptId);
+    console.log(`[AgentManager] Answered question for ${attemptId}`);
+    return true;
+  }
+
+  /**
+   * Cancel a pending AskUserQuestion (user clicked cancel/escape)
+   * Returns deny to tell Claude the user declined
+   */
+  cancelQuestion(attemptId: string): boolean {
+    const pending = this.pendingQuestions.get(attemptId);
+    if (!pending) {
+      return false;
+    }
+
+    // Resolve with null to signal cancellation
+    // canUseTool callback will return { behavior: 'deny' }
+    pending.resolve(null);
+    this.pendingQuestions.delete(attemptId);
+    console.log(`[AgentManager] Cancelled question for ${attemptId}`);
+    return true;
+  }
+
+  /**
+   * Check if there's a pending question for an attempt
+   */
+  hasPendingQuestion(attemptId: string): boolean {
+    return this.pendingQuestions.has(attemptId);
+  }
+
+  /**
+   * Send input to a running agent (legacy method)
+   * @deprecated Use answerQuestion() for AskUserQuestion responses
    */
   async sendInput(attemptId: string, _input: string): Promise<boolean> {
     const instance = this.agents.get(attemptId);
@@ -220,6 +325,13 @@ class AgentManager extends EventEmitter {
     const instance = this.agents.get(attemptId);
     if (!instance) return false;
 
+    // Clean up any pending questions for this attempt
+    const pending = this.pendingQuestions.get(attemptId);
+    if (pending) {
+      pending.resolve(null); // Resolve with null to unblock and signal cancellation
+      this.pendingQuestions.delete(attemptId);
+    }
+
     instance.controller.abort();
     this.agents.delete(attemptId);
     return true;
@@ -229,10 +341,17 @@ class AgentManager extends EventEmitter {
    * Cancel all running agents
    */
   cancelAll(): void {
+    // Clean up all pending questions first
+    for (const [attemptId, pending] of this.pendingQuestions) {
+      pending.resolve(null);
+    }
+    this.pendingQuestions.clear();
+
+    // Then abort all agents
     for (const [attemptId, instance] of this.agents) {
       instance.controller.abort();
-      this.agents.delete(attemptId);
     }
+    this.agents.clear();
   }
 
   /**

@@ -112,7 +112,9 @@ export function QuestionPrompt({ questions, onAnswer, onCancel }: QuestionPrompt
   }, [selectedIndex, isTyping, customInput, currentQuestion, allOptions.length, isLastOption]);
 
   const handleSubmitAnswer = (answer: string | string[]) => {
-    const newAnswers = { ...answers, [currentQuestion.header]: answer };
+    // Use question text as key (SDK format expects "question" field, not "header")
+    const answerValue = Array.isArray(answer) ? answer.join(', ') : answer;
+    const newAnswers = { ...answers, [currentQuestion.question]: answerValue };
     setAnswers(newAnswers);
 
     if (currentQuestionIndex < questions.length - 1) {
