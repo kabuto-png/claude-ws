@@ -1,139 +1,89 @@
 # Claude Kanban
 
-A visual Kanban board interface for managing tasks powered by Claude Code CLI. Organize your AI-assisted development workflow with drag-and-drop task management, real-time streaming responses, and integrated file browsing.
+**A beautifully crafted interface for Claude Code.**
+
+Kanban board for Claude Code. Work from anywhere with consistent performance. Intuitive workflow, flexible plugins.
+
+---
+
+## Why Claude Kanban?
+
+### 🌍 Work Everywhere
+Coffee shop. Airport lounge. Hotel WiFi. Beach with spotty signal. Claude Kanban runs locally with SQLite—no cloud dependency, no latency spikes. Your workflow travels with you.
+
+### ⚡ Consistent Performance
+Same snappy experience whether you're on fiber at home or tethering from your phone. Lightweight footprint. Instant startup. Responsive UI while Claude streams. Performance you can rely on, anywhere.
+
+### 🎯 Unique Workflow
+Each task is a conversation. Each conversation has checkpoints. Rewind to any point, branch off, continue later. Your AI workflow adapts to how you think.
+
+### ✨ Intuitive Management
+Drag-and-drop across columns. Watch responses stream live. Navigate conversation history. File browser with git status. Everything where you expect it.
+
+### 🔌 Flexible Plugins
+Agent Factory manages Claude skills, commands, and agents per project. Install what you need. Your toolkit, your rules.
+
+### 🔋 Powered by Claude Code
+Native CLI integration. Real-time streaming. File attachments. Full persistence. All the power, none of the friction.
+
+---
 
 ## Features
 
-- **Kanban Board** - Drag-and-drop task management with columns: To Do, In Progress, In Review, Done, Cancelled
-- **Claude Code Integration** - Execute prompts directly through Claude Code CLI with real-time streaming output
-- **Multi-Project Support** - Manage multiple project workspaces with separate task boards
-- **File Browser** - Integrated file explorer with search, preview, and git status indicators
-- **Git Integration** - View changes, diffs, commit history, and perform git operations
-- **Conversation History** - Track all attempts per task with full conversation logs
-- **Checkpoints** - Save and rewind to previous conversation states
-- **File Attachments** - Attach files to prompts for context
-- **Theme Support** - Multiple themes including Dracula, VS Code Light/Dark, and system defaults
-- **Real-time Updates** - Socket.io powered live streaming of Claude responses
+| Feature | Description |
+|---------|-------------|
+| **Kanban Board** | Drag-and-drop tasks: To Do → In Progress → In Review → Done |
+| **Real-time Streaming** | Watch Claude's responses stream live via Socket.io |
+| **Checkpoints** | Save conversation states, rewind to any point |
+| **Conversation History** | Full attempt logs with ability to continue or branch |
+| **File Browser** | Integrated explorer with search, preview, git status |
+| **Git Integration** | View diffs, commits, and perform git operations |
+| **File Attachments** | Attach files to provide context for prompts |
+| **Multi-Project** | Manage multiple workspaces with separate boards |
+| **Agent Factory** | Discover and manage Claude skills, commands, agents |
+| **Themes** | Light, Dark, VS Code Light/Dark, Dracula |
 
-## Tech Stack
+---
 
-- **Framework**: Next.js 16 with React 19
-- **Styling**: Tailwind CSS 4 with CSS variables
-- **Database**: SQLite with Drizzle ORM
-- **Real-time**: Socket.io for streaming
-- **UI Components**: Radix UI primitives
-- **Drag & Drop**: dnd-kit
-- **State Management**: Zustand
+## Quick Start
 
-## Prerequisites
-
-- Node.js 20+
-- pnpm 9+
-- [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
-
-## Getting Started
-
-### Installation
+**Prerequisites:** Node.js 20+, pnpm 9+, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
 
 ```bash
-# Clone the repository
-git clone <repository-url>
+git clone https://github.com/anthropics/claude-kanban.git
 cd claude-kanban
-
-# Install dependencies
 pnpm install
-
-# Run database migrations
 pnpm db:migrate
-```
-
-### Development
-
-```bash
-# Start development server (includes Socket.io)
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
+Open [http://localhost:3000](http://localhost:3000)
 
-### Production
+---
 
-```bash
-# Build for production
-pnpm build
+## Tech Stack
 
-# Start production server
-pnpm start
-```
+- **Framework**: Next.js 16 + React 19
+- **Database**: SQLite + Drizzle ORM
+- **Real-time**: Socket.io
+- **Styling**: Tailwind CSS 4
+- **UI**: Radix UI primitives
+- **State**: Zustand
+- **Drag & Drop**: dnd-kit
 
-## Project Structure
-
-```
-src/
-├── app/                    # Next.js App Router
-│   ├── api/               # API routes
-│   │   ├── tasks/         # Task CRUD
-│   │   ├── attempts/      # Attempt management
-│   │   ├── projects/      # Project management
-│   │   ├── git/           # Git operations
-│   │   ├── files/         # File system access
-│   │   ├── search/        # File/content search
-│   │   ├── checkpoints/   # Conversation checkpoints
-│   │   └── uploads/       # File attachments
-│   └── page.tsx           # Main application
-├── components/
-│   ├── kanban/            # Board, Column, TaskCard
-│   ├── task/              # Task detail panel, conversation view
-│   ├── claude/            # Response rendering, code blocks
-│   ├── sidebar/           # File browser, git panel
-│   ├── settings/          # Settings dialog
-│   └── ui/                # Shared UI components
-├── lib/
-│   ├── db/                # Database schema and connection
-│   ├── process-manager.ts # Claude CLI process management
-│   └── utils.ts           # Utilities
-├── stores/                # Zustand stores
-└── types/                 # TypeScript definitions
-```
-
-## Database Schema
-
-| Table | Description |
-|-------|-------------|
-| `projects` | Workspace configurations with name and path |
-| `tasks` | Kanban cards with status and position |
-| `attempts` | Prompt submissions with streaming output |
-| `attempt_logs` | Chunked streaming logs (stdout/stderr/json) |
-| `attempt_files` | File attachments per attempt |
-| `checkpoints` | Conversation state snapshots for rewind |
-
-## Themes
-
-Available themes in Settings > Appearance:
-
-- **Default Light** - Clean light theme
-- **Default Dark** - Modern dark theme
-- **VS Code Light** - Visual Studio Code Light+ colors
-- **VS Code Dark** - Visual Studio Code Dark+ colors
-- **Dracula** - Official Dracula color scheme
+---
 
 ## Scripts
 
 | Command | Description |
 |---------|-------------|
-| `pnpm dev` | Start development server with Socket.io |
+| `pnpm dev` | Start development server |
 | `pnpm build` | Build for production |
 | `pnpm start` | Start production server |
 | `pnpm lint` | Run ESLint |
-| `pnpm db:generate` | Generate Drizzle migrations |
 | `pnpm db:migrate` | Run database migrations |
 
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `3000` | Server port |
-| `NODE_ENV` | `development` | Environment mode |
+---
 
 ## License
 
