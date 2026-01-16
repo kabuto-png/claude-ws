@@ -1,0 +1,277 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Package, Plus, RefreshCw, Search, Trash2, Edit, X, Upload } from 'lucide-react';
+import { useAgentFactoryStore } from '@/stores/agent-factory-store';
+import { useAgentFactoryUIStore } from '@/stores/agent-factory-ui-store';
+import { Component } from '@/types/agent-factory';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ComponentDetailDialog } from './component-detail-dialog';
+import { ComponentFormDialog } from './component-form-dialog';
+import { DiscoveryDialog } from './discovery-dialog';
+import { UploadDialog } from './upload-dialog';
+
+export function ComponentList() {
+  const { components, loading, error, fetchComponents, deleteComponent } = useAgentFactoryStore();
+  const { setOpen: setAgentFactoryOpen } = useAgentFactoryUIStore();
+  const [filter, setFilter] = useState<'all' | 'skill' | 'command' | 'agent' | 'agent_set'>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedComponent, setSelectedComponent] = useState<Component | null>(null);
+  const [createFormOpen, setCreateFormOpen] = useState(false);
+  const [discoveryOpen, setDiscoveryOpen] = useState(false);
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [editingComponent, setEditingComponent] = useState<Component | null>(null);
+
+  useEffect(() => {
+    fetchComponents();
+  }, [fetchComponents]);
+
+  const filteredComponents = components.filter((c) => {
+    const matchesStorage = c.storageType === 'imported' || c.storageType === 'local';
+    const matchesFilter = filter === 'all' || c.type === filter;
+    const matchesSearch =
+      !searchQuery ||
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (c.description?.toLowerCase().includes(searchQuery.toLowerCase()) ?? false);
+    // Only show components in CLAUDE_HOME_DIR/agent-factory
+    const isInAgentFactory = c.type === 'agent_set'
+      ? (c.agentSetPath?.includes('/agent-factory/') ?? false)
+      : (c.sourcePath?.includes('/agent-factory/') ?? false);
+    return matchesStorage && matchesFilter && matchesSearch && isInAgentFactory;
+  });
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this component?')) return;
+    try {
+      await deleteComponent(id);
+    } catch (error) {
+      console.error('Failed to delete component:', error);
+    }
+  };
+
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case 'skill':
+        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'command':
+        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
+      case 'agent':
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+      case 'agent_set':
+        return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
+      default:
+        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
+    }
+  };
+
+  const getTypeLabel = (type: string) => {
+    switch (type) {
+      case 'agent_set':
+        return 'Agent Set';
+      default:
+        return type;
+    }
+  };
+
+  return (
+    <div className="p-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+        <div className="flex items-center justify-between sm:justify-normal gap-3">
+          <div className="flex items-center gap-3">
+            <Package className="w-6 h-6" />
+            <h1 className="text-2xl font-bold">Agent Factory</h1>
+          </div>
+          <Button variant="ghost" size="icon" className="sm:hidden" onClick={() => setAgentFactoryOpen(false)}>
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2 justify-end">
+          <Button variant="outline" size="sm" onClick={() => fetchComponents()}>
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setDiscoveryOpen(true)}>
+            <Package className="w-4 h-4 mr-2" />
+            Discover
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setUploadOpen(true)}>
+            <Upload className="w-4 h-4 mr-2" />
+            Upload
+          </Button>
+          <Button size="sm" onClick={() => setCreateFormOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" />
+            New
+          </Button>
+          <Button variant="ghost" size="icon" className="hidden sm:flex" onClick={() => setAgentFactoryOpen(false)}>
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
+      </div>
+
+      {/* Filters and Search */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+        <div className="flex gap-2">
+          {(['all', 'skill', 'command', 'agent', 'agent_set'] as const).map((type) => (
+            <button
+              key={type}
+              onClick={() => setFilter(type)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition-colors ${
+                filter === type
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+            >
+              {type === 'all' ? 'All' : type === 'agent_set' ? 'Agent Sets' : `${type}s`}
+            </button>
+          ))}
+        </div>
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            placeholder="Search components..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-4 rounded-lg mb-6">
+          {error}
+        </div>
+      )}
+
+      {/* Loading */}
+      {loading && (
+        <div className="text-center py-12 text-muted-foreground">
+          Loading components...
+        </div>
+      )}
+
+      {/* Component Grid */}
+      {!loading && (
+        <div className="max-h-[calc(100vh-300px)] overflow-y-auto pr-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredComponents.map((component) => (
+            <div
+              key={component.id}
+              className="border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+              onClick={() => setSelectedComponent(component)}
+            >
+              <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <Package className="w-5 h-5 text-muted-foreground" />
+                  <h3 className="font-semibold">{component.name}</h3>
+                </div>
+                <span className={`text-xs px-2 py-1 rounded-full ${getTypeColor(component.type)}`}>
+                  {getTypeLabel(component.type)}
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
+                {component.description || 'No description'}
+              </p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span className="capitalize">{component.storageType}</span>
+                <span>•</span>
+                <span>{new Date(component.createdAt).toLocaleDateString()}</span>
+              </div>
+              <div className="flex gap-2 mt-4" onClick={(e) => e.stopPropagation()}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setEditingComponent(component)}
+                >
+                  <Edit className="w-3 h-3 mr-1" />
+                  Edit
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1 text-destructive hover:text-destructive"
+                  onClick={() => handleDelete(component.id)}
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />
+                  Delete
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!loading && filteredComponents.length === 0 && (
+        <div className="text-center py-12">
+          <Package className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+          <h3 className="text-lg font-semibold mb-2">No components found</h3>
+          <p className="text-muted-foreground mb-4">
+            {searchQuery || filter !== 'all'
+              ? 'Try adjusting your filters or search query'
+              : 'Get started by discovering existing components or creating a new one'}
+          </p>
+          {!searchQuery && filter === 'all' && (
+            <div className="flex justify-center gap-2">
+              <Button variant="outline" onClick={() => setDiscoveryOpen(true)}>
+                <Package className="w-4 h-4 mr-2" />
+                Discover Components
+              </Button>
+              <Button variant="outline" onClick={() => setUploadOpen(true)}>
+                <Upload className="w-4 h-4 mr-2" />
+                Upload
+              </Button>
+              <Button onClick={() => setCreateFormOpen(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                New
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Dialogs */}
+      {selectedComponent && (
+        <ComponentDetailDialog
+          component={selectedComponent}
+          open={!!selectedComponent}
+          onOpenChange={(open) => !open && setSelectedComponent(null)}
+        />
+      )}
+
+      {createFormOpen && (
+        <ComponentFormDialog
+          open={createFormOpen}
+          onOpenChange={setCreateFormOpen}
+        />
+      )}
+
+      {editingComponent && (
+        <ComponentFormDialog
+          component={editingComponent}
+          open={!!editingComponent}
+          onOpenChange={(open) => !open && setEditingComponent(null)}
+        />
+      )}
+
+      {discoveryOpen && (
+        <DiscoveryDialog
+          open={discoveryOpen}
+          onOpenChange={setDiscoveryOpen}
+        />
+      )}
+
+      {uploadOpen && (
+        <UploadDialog
+          open={uploadOpen}
+          onOpenChange={setUploadOpen}
+          onUploadSuccess={() => fetchComponents()}
+        />
+      )}
+    </div>
+  );
+}
