@@ -228,6 +228,34 @@ export const componentDependencyCache = sqliteTable(
   ]
 );
 
+// Shells table - background shell processes per project
+export const shells = sqliteTable(
+  'shells',
+  {
+    id: text('id').primaryKey(),
+    projectId: text('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    attemptId: text('attempt_id')
+      .references(() => attempts.id, { onDelete: 'set null' }),
+    command: text('command').notNull(),
+    cwd: text('cwd').notNull(),
+    pid: integer('pid'),
+    status: text('status', { enum: ['running', 'stopped', 'crashed'] })
+      .notNull()
+      .default('running'),
+    exitCode: integer('exit_code'),
+    exitSignal: text('exit_signal'),
+    createdAt: integer('created_at', { mode: 'number' })
+      .notNull()
+      .$defaultFn(() => Date.now()),
+    stoppedAt: integer('stopped_at', { mode: 'number' }),
+  },
+  (table) => [
+    index('idx_shells_project').on(table.projectId, table.status),
+  ]
+);
+
 // Type exports for queries
 export type Project = typeof projects.$inferSelect;
 export type NewProject = typeof projects.$inferInsert;
@@ -249,3 +277,5 @@ export type ComponentDependency = typeof componentDependencies.$inferSelect;
 export type NewComponentDependency = typeof componentDependencies.$inferInsert;
 export type ComponentDependencyCache = typeof componentDependencyCache.$inferSelect;
 export type NewComponentDependencyCache = typeof componentDependencyCache.$inferInsert;
+export type Shell = typeof shells.$inferSelect;
+export type NewShell = typeof shells.$inferInsert;

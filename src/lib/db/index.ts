@@ -98,6 +98,22 @@ export function initDb() {
     );
 
     CREATE INDEX IF NOT EXISTS idx_attempt_files_attempt ON attempt_files(attempt_id);
+
+    CREATE TABLE IF NOT EXISTS shells (
+      id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      attempt_id TEXT REFERENCES attempts(id) ON DELETE SET NULL,
+      command TEXT NOT NULL,
+      cwd TEXT NOT NULL,
+      pid INTEGER,
+      status TEXT NOT NULL DEFAULT 'running' CHECK(status IN ('running', 'stopped', 'crashed')),
+      exit_code INTEGER,
+      exit_signal TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+      stopped_at INTEGER
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_shells_project ON shells(project_id, status);
   `);
 
   // Migration: Add session_id column if it doesn't exist (for existing databases)

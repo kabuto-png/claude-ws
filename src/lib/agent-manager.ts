@@ -8,7 +8,7 @@
 import { EventEmitter } from 'events';
 import { query } from '@anthropic-ai/claude-agent-sdk';
 import type { ClaudeOutput } from '@/types';
-import { adaptSDKMessage, isValidSDKMessage } from './sdk-event-adapter';
+import { adaptSDKMessage, isValidSDKMessage, type BackgroundShellInfo } from './sdk-event-adapter';
 import { sessionManager } from './session-manager';
 import { checkpointManager } from './checkpoint-manager';
 import { getSystemPrompt } from './system-prompt';
@@ -25,6 +25,7 @@ interface AgentEvents {
   stderr: (data: { attemptId: string; content: string }) => void;
   exit: (data: { attemptId: string; code: number | null }) => void;
   question: (data: { attemptId: string; toolUseId: string; questions: unknown[] }) => void;
+  backgroundShell: (data: { attemptId: string; shell: BackgroundShellInfo }) => void;
 }
 
 export interface AgentStartOptions {
@@ -162,6 +163,14 @@ class AgentManager extends EventEmitter {
             attemptId,
             toolUseId: adapted.askUserQuestion.toolUseId,
             questions: adapted.askUserQuestion.questions,
+          });
+        }
+
+        // Handle background shell (Bash with run_in_background=true)
+        if (adapted.backgroundShell) {
+          this.emit('backgroundShell', {
+            attemptId,
+            shell: adapted.backgroundShell,
           });
         }
 

@@ -247,6 +247,7 @@ function KanbanApp() {
 
       {/* Right Sidebar - actions panel */}
       <RightSidebar
+        projectId={selectedProjectIds[0]}
         onCreateTask={() => setCreateTaskOpen(true)}
         onOpenSettings={() => setSettingsOpen(true)}
       />

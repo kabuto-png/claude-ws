@@ -7,12 +7,13 @@ import { useRightSidebarStore } from '@/stores/right-sidebar-store';
 import { useAgentFactoryUIStore } from '@/stores/agent-factory-ui-store';
 
 interface RightSidebarProps {
+  projectId?: string;
   onCreateTask: () => void;
   onOpenSettings: () => void;
   className?: string;
 }
 
-export function RightSidebar({ onCreateTask, onOpenSettings, className }: RightSidebarProps) {
+export function RightSidebar({ projectId, onCreateTask, onOpenSettings, className }: RightSidebarProps) {
   const { isOpen, closeRightSidebar } = useRightSidebarStore();
   const { setOpen: setAgentFactoryOpen } = useAgentFactoryUIStore();
 
