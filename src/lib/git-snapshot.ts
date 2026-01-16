@@ -5,7 +5,7 @@ import { execSync } from 'child_process';
  * Creates commits before Claude edits and restores them on rewind
  */
 
-const SNAPSHOT_PREFIX = 'claude-kanban-checkpoint';
+const SNAPSHOT_PREFIX = 'claude-ws-checkpoint';
 
 /**
  * Check if directory is a git repository
@@ -84,10 +84,10 @@ export function createSnapshot(
       stdio: 'pipe',
       env: {
         ...process.env,
-        GIT_AUTHOR_NAME: 'Claude Kanban',
-        GIT_AUTHOR_EMAIL: 'claude-kanban@local',
-        GIT_COMMITTER_NAME: 'Claude Kanban',
-        GIT_COMMITTER_EMAIL: 'claude-kanban@local',
+        GIT_AUTHOR_NAME: 'Claude Workspace',
+        GIT_AUTHOR_EMAIL: 'claude-ws@local',
+        GIT_COMMITTER_NAME: 'Claude Workspace',
+        GIT_COMMITTER_EMAIL: 'claude-ws@local',
       },
     });
 

@@ -44,3 +44,8 @@ next-env.d.ts
 /data/
 /plans/
 /uploads/
+
+# build artifacts
+*.tgz
+/dist/
+/.turbo/

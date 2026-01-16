@@ -1,15 +1,15 @@
-# Claude Kanban
+# Claude Workspace
 
-**A beautifully crafted interface for Claude Code.**
+**A beautifully crafted workspace interface for Claude Code.**
 
-Kanban board for Claude Code. Work from anywhere with consistent performance. Intuitive workflow, flexible plugins.
+Powerful workspace for Claude Code. Work from anywhere with consistent performance. Intuitive workflow, flexible plugins.
 
 ---
 
-## Why Claude Kanban?
+## Why Claude Workspace?
 
 ### 🌍 Work Everywhere
-Coffee shop. Airport lounge. Hotel WiFi. Beach with spotty signal. Claude Kanban runs locally with SQLite—no cloud dependency, no latency spikes. Your workflow travels with you.
+Coffee shop. Airport lounge. Hotel WiFi. Beach with spotty signal. Claude Workspace runs locally with SQLite—no cloud dependency, no latency spikes. Your workflow travels with you.
 
 ### ⚡ Consistent Performance
 Same snappy experience whether you're on fiber at home or tethering from your phone. Lightweight footprint. Instant startup. Responsive UI while Claude streams. Performance you can rely on, anywhere.
@@ -32,7 +32,7 @@ Native CLI integration. Real-time streaming. File attachments. Full persistence.
 
 | Feature | Description |
 |---------|-------------|
-| **Kanban Board** | Drag-and-drop tasks: To Do → In Progress → In Review → Done |
+| **Task Board** | Drag-and-drop tasks: To Do → In Progress → In Review → Done |
 | **Real-time Streaming** | Watch Claude's responses stream live via Socket.io |
 | **Checkpoints** | Save conversation states, rewind to any point |
 | **Conversation History** | Full attempt logs with ability to continue or branch |
@@ -47,17 +47,37 @@ Native CLI integration. Real-time streaming. File attachments. Full persistence.
 
 ## Quick Start
 
+### Option 1: Run with npx (Recommended)
+
 **Prerequisites:** Node.js 20+, pnpm 9+, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
 
 ```bash
-git clone https://github.com/anthropics/claude-kanban.git
-cd claude-kanban
+npx claudews
+```
+
+The first run will:
+- Auto-create SQLite database in `~/.claude-ws/`
+- Run migrations automatically
+- Start the server on http://localhost:8556
+
+### Option 2: Install globally
+
+```bash
+npm install -g claudews
+claudews
+```
+
+### Option 3: Development from source
+
+```bash
+git clone https://github.com/Claude-Workspace/claude-ws.git
+cd claude-ws
 pnpm install
 pnpm db:migrate
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Open [http://localhost:8556](http://localhost:8556)
 
 ---
 

@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Claude Kanban',
-  description: 'Kanban board powered by Claude Code CLI',
+  title: 'Claude Workspace',
+  description: 'Workspace powered by Claude Code CLI',
   viewport: {
     width: 'device-width',
     initialScale: 1,

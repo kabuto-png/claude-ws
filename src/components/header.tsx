@@ -70,10 +70,10 @@ export function Header({ onCreateTask, onOpenSettings, onAddProject }: HeaderPro
 
         {/* Logo - full text on desktop, icon only on mobile */}
         <div className="flex items-center gap-2 shrink-0">
-          <Image src="/logo.png" alt="Claude Kanban" width={28} height={28} className="sm:hidden" />
-          <Image src="/logo.png" alt="Claude Kanban" width={32} height={32} className="hidden sm:block" />
+          <Image src="/logo.png" alt="Claude Workspace" width={28} height={28} className="sm:hidden" />
+          <Image src="/logo.png" alt="Claude Workspace" width={32} height={32} className="hidden sm:block" />
           <span className="hidden sm:inline font-mono text-base font-bold tracking-tight">
-            CLAUDE-KANBAN
+            CLAUDE-WS
           </span>
         </div>
 

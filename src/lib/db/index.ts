@@ -3,9 +3,11 @@ import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from './schema';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 
-// Database file path - stored in project root
-const DB_PATH = path.join(process.cwd(), 'data', 'claude-kanban.db');
+// Database file path - stored in user's home directory for persistence across npx runs
+const DB_DIR = path.join(os.homedir(), '.claude-ws');
+const DB_PATH = path.join(DB_DIR, 'claude-ws.db');
 
 // Ensure data directory exists
 const dataDir = path.dirname(DB_PATH);
