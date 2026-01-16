@@ -10,8 +10,8 @@ export async function fetchWithAuth(
 ): Promise<Response> {
   const apiKey = getStoredApiKey();
 
-  const headers: HeadersInit = {
-    ...options?.headers,
+  const headers: Record<string, string> = {
+    ...(options?.headers as Record<string, string> || {}),
   };
 
   // Add API key if available

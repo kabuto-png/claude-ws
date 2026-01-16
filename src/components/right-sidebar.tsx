@@ -1,9 +1,10 @@
 'use client';
 
-import { Plus, Settings, X } from 'lucide-react';
+import { Plus, Settings, Package, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useRightSidebarStore } from '@/stores/right-sidebar-store';
+import { useAgentFactoryUIStore } from '@/stores/agent-factory-ui-store';
 
 interface RightSidebarProps {
   projectId?: string;
@@ -14,6 +15,7 @@ interface RightSidebarProps {
 
 export function RightSidebar({ projectId, onCreateTask, onOpenSettings, className }: RightSidebarProps) {
   const { isOpen, closeRightSidebar } = useRightSidebarStore();
+  const { setOpen: setAgentFactoryOpen } = useAgentFactoryUIStore();
 
   if (!isOpen) return null;
 
@@ -56,6 +58,18 @@ export function RightSidebar({ projectId, onCreateTask, onOpenSettings, classNam
         >
           <Plus className="h-4 w-4" />
           New Task
+        </Button>
+
+        <Button
+          variant="outline"
+          onClick={() => {
+            setAgentFactoryOpen(true);
+            closeRightSidebar();
+          }}
+          className="w-full justify-start gap-2"
+        >
+          <Package className="h-4 w-4" />
+          Agent Factory
         </Button>
 
         <Button

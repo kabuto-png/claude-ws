@@ -4,12 +4,19 @@ export type TaskStatus = 'todo' | 'in_progress' | 'in_review' | 'done' | 'cancel
 // Attempt status types
 export type AttemptStatus = 'running' | 'completed' | 'failed' | 'cancelled';
 
+// Project settings
+export interface ProjectSettings {
+  selectedComponents: string[]; // Component IDs
+  selectedAgentSets: string[]; // Agent set IDs
+}
+
 // Project type
 export interface Project {
   id: string;
   name: string;
   path: string;
   createdAt: number;
+  settings?: ProjectSettings;
 }
 
 // Task type for Kanban cards

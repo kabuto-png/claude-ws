@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FolderOpen, Plus, ChevronDown, X } from 'lucide-react';
+import { FolderOpen, Plus, ChevronDown, X, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -20,6 +20,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useProjectStore } from '@/stores/project-store';
+import { ProjectSettingsDialog } from '@/components/project-settings/project-settings-dialog';
 
 interface ProjectSelectorProps {
   onAddProject?: () => void;
@@ -38,6 +39,13 @@ export function ProjectSelectorContent({ onAddProject }: ProjectSelectorProps) {
 
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [settingsProjectId, setSettingsProjectId] = useState<string | null>(null);
+
+  const openSettings = (projectId: string) => {
+    setSettingsProjectId(projectId);
+    setSettingsOpen(true);
+  };
 
   const handleDeleteClick = (projectId: string) => {
     setProjectToDelete(projectId);
@@ -65,6 +73,7 @@ export function ProjectSelectorContent({ onAddProject }: ProjectSelectorProps) {
       <DropdownMenuCheckboxItem
         checked={allMode}
         onCheckedChange={() => selectAllProjects()}
+        className="px-2 py-1.5"
       >
         All Projects
       </DropdownMenuCheckboxItem>
@@ -108,6 +117,17 @@ export function ProjectSelectorContent({ onAddProject }: ProjectSelectorProps) {
                   />
                   <span className="truncate text-sm select-none">{project.name}</span>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 shrink-0 text-muted-foreground hover:text-foreground"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openSettings(project.id);
+                  }}
+                >
+                  <Settings className="h-3 w-3" />
+                </Button>
                 <Button
                   variant="ghost"
                   size="icon"
@@ -157,6 +177,18 @@ export function ProjectSelectorContent({ onAddProject }: ProjectSelectorProps) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Project settings dialog */}
+      {settingsProjectId && (
+        <ProjectSettingsDialog
+          open={settingsOpen}
+          onOpenChange={(open) => {
+            setSettingsOpen(open);
+            if (!open) setSettingsProjectId(null);
+          }}
+          projectId={settingsProjectId}
+        />
+      )}
     </>
   );
 }

@@ -114,7 +114,7 @@ export function CheckpointList({ taskId }: CheckpointListProps) {
 
         // Scroll selected element into view
         setTimeout(() => {
-          const container = document.querySelector('[data-checkpoint-list]');
+          const container = document.querySelector('[data-checkpoint-list]') as HTMLElement;
           const element = container?.querySelector(`[data-checkpoint-id="${nextId}"]`) as HTMLElement;
           if (element && container) {
             container.scrollTop = element.offsetTop - container.offsetTop;
@@ -129,7 +129,7 @@ export function CheckpointList({ taskId }: CheckpointListProps) {
 
         // Scroll selected element into view
         setTimeout(() => {
-          const container = document.querySelector('[data-checkpoint-list]');
+          const container = document.querySelector('[data-checkpoint-list]') as HTMLElement;
           const element = container?.querySelector(`[data-checkpoint-id="${prevId}"]`) as HTMLElement;
           if (element && container) {
             container.scrollTop = element.offsetTop - container.offsetTop;
