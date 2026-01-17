@@ -185,32 +185,30 @@ function KanbanApp() {
         {/* Sidebar */}
         <SidebarPanel />
 
-        {/* File tabs panel - in flow, replaces board when tabs are open */}
+        {/* File tabs panel - in flow */}
         <FileTabsPanel />
 
-        {/* Diff preview panel - in flow, pushes content */}
+        {/* Diff preview panel - in flow */}
         <DiffPreviewPanel />
 
-        {/* Main content - Kanban board (hidden when tabs or diff is open) */}
-        {!hasOpenTabs && !diffFile && (
-          <main className="flex-1 overflow-auto min-w-0">
-            {projects.length > 0 ? (
-              <Board onCreateTask={() => setCreateTaskOpen(true)} />
-            ) : (
-              <div className="flex h-full items-center justify-center">
-                <div className="text-center">
-                  <p className="text-muted-foreground mb-4">No projects configured</p>
-                  <button
-                    onClick={() => setSetupOpen(true)}
-                    className="text-primary underline hover:no-underline"
-                  >
-                    Set up a project
-                  </button>
-                </div>
+        {/* Main content - Kanban board (fills remaining space) */}
+        <main className="flex-1 overflow-auto min-w-0">
+          {projects.length > 0 ? (
+            <Board onCreateTask={() => setCreateTaskOpen(true)} />
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <div className="text-center">
+                <p className="text-muted-foreground mb-4">No projects configured</p>
+                <button
+                  onClick={() => setSetupOpen(true)}
+                  className="text-primary underline hover:no-underline"
+                >
+                  Set up a project
+                </button>
               </div>
-            )}
-          </main>
-        )}
+            </div>
+          )}
+        </main>
 
         {/* Task detail panel - right sidebar */}
         {selectedTask && <TaskDetailPanel />}

@@ -1,25 +1,27 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { FolderTree, GitBranch, X, GripVertical, FolderOpen } from 'lucide-react';
+import { useRef } from 'react';
+import { FolderTree, GitBranch, X, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { FileTree } from './file-browser';
 import { GitPanel } from './git-changes';
+import { ResizeHandle } from '@/components/ui/resize-handle';
+import { useResizable } from '@/hooks/use-resizable';
 import { useSidebarStore } from '@/stores/sidebar-store';
+import { usePanelLayoutStore, PANEL_CONFIGS } from '@/stores/panel-layout-store';
 import { useProjectStore } from '@/stores/project-store';
 import { cn } from '@/lib/utils';
 
-const MIN_WIDTH = 200;
-const MAX_WIDTH = 300;
-const DEFAULT_WIDTH = 280;
+const { minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH } = PANEL_CONFIGS.leftSidebar;
 
 interface SidebarPanelProps {
   className?: string;
 }
 
 export function SidebarPanel({ className }: SidebarPanelProps) {
-  const { isOpen, activeTab, setActiveTab, setIsOpen, sidebarWidth, setSidebarWidth } = useSidebarStore();
+  const { isOpen, activeTab, setActiveTab, setIsOpen } = useSidebarStore();
+  const { widths, setWidth: setPanelWidth } = usePanelLayoutStore();
   const {
     projects,
     selectedProjectIds,
@@ -29,52 +31,20 @@ export function SidebarPanel({ className }: SidebarPanelProps) {
     isAllProjectsMode,
     getSelectedProjects
   } = useProjectStore();
-  const [width, setWidth] = useState(sidebarWidth);
-  const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const { width, isResizing, handleMouseDown } = useResizable({
+    initialWidth: widths.leftSidebar,
+    minWidth: MIN_WIDTH,
+    maxWidth: MAX_WIDTH,
+    direction: 'right',
+    onWidthChange: (w) => setPanelWidth('leftSidebar', w),
+  });
 
   // Check if we're in multi-project mode (need to select a project for sidebar)
   const activeProject = getActiveProject();
   const isMultiSelect = isAllProjectsMode() || selectedProjectIds.length > 1;
   const availableProjects = getSelectedProjects();
-
-  // Sync with store on mount
-  useEffect(() => {
-    setWidth(sidebarWidth);
-  }, [sidebarWidth]);
-
-  // Update store when resizing ends
-  useEffect(() => {
-    if (!isResizing && width !== sidebarWidth) {
-      setSidebarWidth(width);
-    }
-  }, [width, isResizing, sidebarWidth, setSidebarWidth]);
-
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isResizing) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const newWidth = e.clientX;
-      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth)));
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizing]);
 
   if (!isOpen) return null;
 
@@ -82,7 +52,7 @@ export function SidebarPanel({ className }: SidebarPanelProps) {
     <div
       ref={panelRef}
       className={cn(
-        'h-full bg-background border-r flex flex-col shrink-0',
+        'h-full bg-background border-r flex flex-col shrink-0 relative',
         'animate-in slide-in-from-left duration-200',
         isResizing && 'select-none',
         className
@@ -151,16 +121,11 @@ export function SidebarPanel({ className }: SidebarPanelProps) {
       </Tabs>
 
       {/* Resize handle */}
-      <div
-        className={cn(
-          'absolute right-0 top-0 h-full w-1.5 cursor-col-resize',
-          'hover:bg-primary/20 active:bg-primary/30 transition-colors',
-          'flex items-center justify-center group'
-        )}
+      <ResizeHandle
+        position="right"
         onMouseDown={handleMouseDown}
-      >
-        <GripVertical className="size-4 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-      </div>
+        isResizing={isResizing}
+      />
     </div>
   );
 }

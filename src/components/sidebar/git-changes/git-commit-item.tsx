@@ -107,7 +107,7 @@ export function GitCommitItem({
 
   return (
     <div
-      className="flex-1 min-w-0 pl-0 pr-2 flex items-center gap-1.5 hover:bg-accent/30 cursor-pointer group rounded-sm transition-colors"
+      className="flex-1 min-w-0 pl-0 pr-2 flex items-center gap-1.5 cursor-pointer group transition-colors"
       onClick={onClick}
       title={`${commit.message}\n${commit.author} • ${commit.date} • ${commit.shortHash}`}
     >

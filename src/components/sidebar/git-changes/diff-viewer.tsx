@@ -1,12 +1,63 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Loader2, X, FileCode, Plus, Minus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { useActiveProject } from '@/hooks/use-active-project';
 import { cn } from '@/lib/utils';
+import hljs from 'highlight.js/lib/core';
+import typescript from 'highlight.js/lib/languages/typescript';
+import javascript from 'highlight.js/lib/languages/javascript';
+import python from 'highlight.js/lib/languages/python';
+import css from 'highlight.js/lib/languages/css';
+import json from 'highlight.js/lib/languages/json';
+import xml from 'highlight.js/lib/languages/xml';
+import go from 'highlight.js/lib/languages/go';
+import rust from 'highlight.js/lib/languages/rust';
+import java from 'highlight.js/lib/languages/java';
 import type { GitDiff } from '@/types';
+import 'highlight.js/styles/github-dark.css';
+
+// Register languages
+hljs.registerLanguage('typescript', typescript);
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('html', xml);
+hljs.registerLanguage('go', go);
+hljs.registerLanguage('rust', rust);
+hljs.registerLanguage('java', java);
+
+/**
+ * Get language from file extension
+ */
+function getLanguageFromPath(filePath: string): string {
+  const ext = filePath.split('.').pop()?.toLowerCase() || '';
+  const langMap: Record<string, string> = {
+    ts: 'typescript', tsx: 'typescript', js: 'javascript', jsx: 'javascript',
+    py: 'python', rb: 'ruby', go: 'go', rs: 'rust', java: 'java',
+    css: 'css', scss: 'css', html: 'html', json: 'json', md: 'markdown',
+  };
+  return langMap[ext] || 'typescript';
+}
+
+/**
+ * Syntax highlighting using highlight.js
+ */
+function highlightCode(code: string, language: string): string {
+  try {
+    const result = hljs.highlight(code, { language, ignoreIllegals: true });
+    return result.value;
+  } catch {
+    // Fallback: just escape HTML
+    return code
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+  }
+}
 
 interface DiffViewerProps {
   filePath: string;
@@ -95,6 +146,13 @@ export function DiffViewer({ filePath, staged, onClose }: DiffViewerProps) {
   };
 
   const fileName = filePath.split('/').pop() || filePath;
+  const language = getLanguageFromPath(filePath);
+
+  // Parse and highlight diff content
+  const parsedLines = useMemo(() => {
+    if (!diff?.diff) return [];
+    return parseDiff(diff.diff);
+  }, [diff?.diff]);
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -143,42 +201,54 @@ export function DiffViewer({ filePath, staged, onClose }: DiffViewerProps) {
           {error}
         </div>
       ) : diff && diff.diff ? (
-        <ScrollArea className="flex-1">
-          <div className="font-mono text-xs">
-            {parseDiff(diff.diff).map((line, i) => (
-              <div
-                key={i}
-                className={cn(
-                  'flex',
-                  line.type === 'addition' && 'bg-green-500/15',
-                  line.type === 'deletion' && 'bg-red-500/15',
-                  line.type === 'header' && 'bg-muted/50 text-muted-foreground',
-                  line.type === 'hunk' && 'bg-blue-500/10 text-blue-600'
-                )}
-              >
-                {/* Line numbers */}
-                <div className="flex shrink-0 text-muted-foreground/60 select-none">
-                  <span className="w-10 text-right pr-1 border-r border-border/50">
-                    {line.lineNumber?.old ?? ''}
-                  </span>
-                  <span className="w-10 text-right pr-1 border-r border-border/50">
-                    {line.lineNumber?.new ?? ''}
-                  </span>
+        <div className="flex-1 overflow-auto custom-scrollbar">
+          <div className="font-mono text-xs min-w-max">
+            {parsedLines.map((line, i) => {
+              // Only highlight code lines (not headers/hunks)
+              const shouldHighlight = line.type === 'addition' || line.type === 'deletion' || line.type === 'context';
+              const highlightedContent = shouldHighlight
+                ? highlightCode(line.content, language)
+                : line.content;
+
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    'flex',
+                    line.type === 'addition' && 'bg-green-500/15',
+                    line.type === 'deletion' && 'bg-red-500/15',
+                    line.type === 'header' && 'bg-muted/50 text-muted-foreground',
+                    line.type === 'hunk' && 'bg-blue-500/10 text-blue-600'
+                  )}
+                >
+                  {/* Line numbers - sticky to left */}
+                  <div className="flex shrink-0 text-muted-foreground/60 select-none sticky left-0 bg-inherit z-10">
+                    <span className="w-10 text-right pr-1 border-r border-border/50 bg-background">
+                      {line.lineNumber?.old ?? ''}
+                    </span>
+                    <span className="w-10 text-right pr-1 border-r border-border/50 bg-background">
+                      {line.lineNumber?.new ?? ''}
+                    </span>
+                  </div>
+                  {/* Line content */}
+                  <pre className="px-2 whitespace-pre">
+                    {line.type === 'addition' && (
+                      <span className="text-green-700 dark:text-green-400">+ </span>
+                    )}
+                    {line.type === 'deletion' && (
+                      <span className="text-red-700 dark:text-red-400">- </span>
+                    )}
+                    {shouldHighlight ? (
+                      <span dangerouslySetInnerHTML={{ __html: highlightedContent }} />
+                    ) : (
+                      line.content
+                    )}
+                  </pre>
                 </div>
-                {/* Line content */}
-                <pre className="flex-1 px-2 whitespace-pre-wrap break-all">
-                  {line.type === 'addition' && (
-                    <span className="text-green-700 dark:text-green-400">+ </span>
-                  )}
-                  {line.type === 'deletion' && (
-                    <span className="text-red-700 dark:text-red-400">- </span>
-                  )}
-                  {line.content}
-                </pre>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        </ScrollArea>
+        </div>
       ) : (
         <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
           No changes to display

@@ -11,7 +11,7 @@ const GIT_TIMEOUT = 10000; // Longer timeout for commit
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { projectPath, message } = body;
+    const { projectPath, message, title, description } = body;
 
     if (!projectPath) {
       return NextResponse.json(
@@ -20,7 +20,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!message || typeof message !== 'string' || !message.trim()) {
+    // Support both old format (message) and new format (title + description)
+    const commitTitle = title || message;
+    const commitDescription = description || '';
+
+    if (!commitTitle || typeof commitTitle !== 'string' || !commitTitle.trim()) {
       return NextResponse.json(
         { error: 'Commit message is required' },
         { status: 400 }
@@ -35,10 +39,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Build commit message: title + blank line + description (if provided)
+    const fullMessage = commitDescription.trim()
+      ? `${commitTitle.trim()}\n\n${commitDescription.trim()}`
+      : commitTitle.trim();
+
     // Create commit
     const { stdout } = await execFileAsync(
       'git',
-      ['commit', '-m', message.trim()],
+      ['commit', '-m', fullMessage],
       {
         cwd: resolvedPath,
         timeout: GIT_TIMEOUT,
@@ -52,7 +61,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       hash,
-      message: message.trim(),
+      message: fullMessage,
+      title: commitTitle.trim(),
+      description: commitDescription.trim(),
     });
   } catch (error: unknown) {
     console.error('Error creating commit:', error);

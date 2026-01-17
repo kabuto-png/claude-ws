@@ -1,28 +1,28 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { X, Wifi, WifiOff, RotateCcw, GripVertical, ChevronDown } from 'lucide-react';
+import { X, Wifi, WifiOff, RotateCcw, ChevronDown } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { ResizeHandle } from '@/components/ui/resize-handle';
 import { PromptInput, PromptInputRef } from './prompt-input';
 import { ConversationView } from './conversation-view';
 import { InteractiveCommandOverlay, QuestionPrompt } from './interactive-command';
 import { ShellToggleBar, ShellExpandedPanel } from './task-shell-indicator';
+import { useResizable } from '@/hooks/use-resizable';
 import { useShellStore } from '@/stores/shell-store';
 import { useTaskStore } from '@/stores/task-store';
 import { useProjectStore } from '@/stores/project-store';
+import { usePanelLayoutStore, PANEL_CONFIGS } from '@/stores/panel-layout-store';
 import { useAttemptStream } from '@/hooks/use-attempt-stream';
 import { useInteractiveCommandStore } from '@/stores/interactive-command-store';
 import { useAttachmentStore } from '@/stores/attachment-store';
 import { cn } from '@/lib/utils';
 import type { TaskStatus, PendingFile } from '@/types';
 
-const MIN_WIDTH = 320;
-const MAX_WIDTH = 800;
-const DEFAULT_WIDTH = 560;
-const STORAGE_KEY = 'task-detail-width';
+const { minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH } = PANEL_CONFIGS.taskDetail;
 const MOBILE_BREAKPOINT = 768;
 
 interface TaskDetailPanelProps {
@@ -42,10 +42,9 @@ const STATUSES: TaskStatus[] = ['todo', 'in_progress', 'in_review', 'done', 'can
 export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
   const { selectedTask, setSelectedTask, updateTaskStatus, setTaskChatInit, pendingAutoStartTask, pendingAutoStartPrompt, setPendingAutoStartTask, moveTaskToInProgress } = useTaskStore();
   const { activeProjectId, selectedProjectIds } = useProjectStore();
+  const { widths, setWidth: setPanelWidth } = usePanelLayoutStore();
   const { getPendingFiles } = useAttachmentStore();
   const [conversationKey, setConversationKey] = useState(0);
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
-  const [isResizing, setIsResizing] = useState(false);
   const [currentAttemptFiles, setCurrentAttemptFiles] = useState<PendingFile[]>([]);
   const [isMobile, setIsMobile] = useState(false);
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false);
@@ -57,21 +56,18 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
   const hasAutoStartedRef = useRef(false);
   const lastCompletedTaskRef = useRef<string | null>(null);
 
-  // Load saved width and detect mobile
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = parseInt(saved, 10);
-      if (!isNaN(parsed) && parsed >= MIN_WIDTH && parsed <= MAX_WIDTH) {
-        setWidth(parsed);
-      }
-    }
+  const { width, isResizing, handleMouseDown: handleResizeMouseDown } = useResizable({
+    initialWidth: widths.taskDetail,
+    minWidth: MIN_WIDTH,
+    maxWidth: MAX_WIDTH,
+    direction: 'left',
+    onWidthChange: (w) => setPanelWidth('taskDetail', w),
+  });
 
-    // Initial mobile detection
+  // Detect mobile
+  useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT);
     checkMobile();
-
-    // Listen for resize
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
@@ -87,39 +83,6 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [showStatusDropdown]);
-
-  // Save width on change
-  useEffect(() => {
-    if (!isResizing) {
-      localStorage.setItem(STORAGE_KEY, String(width));
-    }
-  }, [width, isResizing]);
-
-  const handleResizeMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isResizing) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const newWidth = window.innerWidth - e.clientX;
-      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth)));
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizing]);
 
   // Handle task completion - move to review and show notification
   const handleTaskComplete = useCallback(
@@ -271,7 +234,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
     <div
       ref={panelRef}
       className={cn(
-        'h-full bg-background border-l flex flex-col shrink-0',
+        'h-full bg-background border-l flex flex-col shrink-0 relative',
         isMobile && 'fixed inset-0 z-50 w-full border-l-0',
         isResizing && 'select-none',
         className
@@ -280,16 +243,11 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
     >
       {/* Resize handle - left edge, hidden on mobile */}
       {!isMobile && (
-      <div
-        className={cn(
-          'absolute left-0 top-0 h-full w-1.5 cursor-col-resize z-10',
-          'hover:bg-primary/20 active:bg-primary/30 transition-colors',
-          'flex items-center justify-center group'
-        )}
-        onMouseDown={handleResizeMouseDown}
-      >
-        <GripVertical className="size-4 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-      </div>
+        <ResizeHandle
+          position="left"
+          onMouseDown={handleResizeMouseDown}
+          isResizing={isResizing}
+        />
       )}
       {/* Header */}
       <div className="px-3 sm:px-4 py-2 border-b">

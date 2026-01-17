@@ -94,7 +94,6 @@ export async function POST(request: NextRequest) {
     const prompt = buildCommitMessagePrompt(diffOutput);
 
     // Call Claude SDK to generate commit message
-    let generatedMessage: string;
     try {
       const response = query({
         prompt,
@@ -136,16 +135,27 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      generatedMessage = extractCommitMessage(buffer);
+      const { title, description } = extractCommitMessage(buffer);
 
-      // Validate non-empty message
-      if (!generatedMessage || generatedMessage.trim().length === 0) {
-        console.error('Claude SDK returned empty message. Buffer:', buffer);
+      // Validate non-empty title
+      if (!title || title.trim().length === 0) {
+        console.error('Claude SDK returned empty title. Buffer:', buffer);
         return NextResponse.json(
           { error: 'Generated message was empty. Try staging different files.' },
           { status: 500 }
         );
       }
+
+      return NextResponse.json({
+        title,
+        description,
+        // Keep 'message' for backwards compatibility (title only)
+        message: title,
+        diff: {
+          additions,
+          deletions,
+        },
+      });
     } catch (error) {
       console.error('Error calling Claude SDK:', error);
 
@@ -163,14 +173,6 @@ export async function POST(request: NextRequest) {
         { status: isRateLimitError ? 429 : isAuthError ? 401 : 500 }
       );
     }
-
-    return NextResponse.json({
-      message: generatedMessage,
-      diff: {
-        additions,
-        deletions,
-      },
-    });
   } catch (error: unknown) {
     console.error('Error generating commit message:', error);
     return NextResponse.json(
@@ -181,30 +183,49 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Build prompt for Claude to generate commit message
+ * Build prompt for Claude to generate commit message with title and description
  */
 function buildCommitMessagePrompt(diff: string): string {
-  return `You are a git commit message generator. Analyze the following git diff and generate a concise, conventional commit message.
+  return `Generate a git commit message with title and description.
 
-RULES:
-1. Use conventional commit format: type(scope): description
-2. Types: feat, fix, docs, style, refactor, test, chore
-3. Keep under 72 characters
-4. Be specific about what changed, not how
-5. Output ONLY the commit message, no explanations
+TITLE RULES:
+- Format: type(scope): description
+- Types: feat, fix, docs, style, refactor, test, chore
+- Max 72 characters
+- Be specific about what changed
+
+DESCRIPTION RULES:
+- Use bullet points with "-" prefix
+- List files/components changed and their modifications
+- Focus on WHAT changed and its IMPACT
+- Be concise and technical
+- NO introductory sentences like "This commit introduces..."
+- NO concluding sentences like "These changes improve..."
+- Just the facts: file changes, features added/modified, breaking changes
+
+EXAMPLE OUTPUT:
+TITLE: feat(auth): add JWT token refresh mechanism
+DESCRIPTION:
+- auth-service.ts: add refreshToken() method with 7-day expiry
+- auth-middleware.ts: check token expiry before each request
+- user-store.ts: persist refresh token in localStorage
+- Breaking: removed deprecated session-based auth
+
+OUTPUT FORMAT:
+TITLE: <commit title>
+DESCRIPTION:
+<bullet points>
 
 <git-diff>
 ${diff}
-</git-diff>
-
-Generate commit message:`;
+</git-diff>`;
 }
 
 /**
- * Extract commit message from Claude's response
+ * Extract commit title and description from Claude's response
  * Handles cases where Claude might add markdown fences or extra text
  */
-function extractCommitMessage(response: string): string {
+function extractCommitMessage(response: string): { title: string; description: string } {
   let message = response.trim();
 
   // Remove markdown code fences if present
@@ -213,15 +234,34 @@ function extractCommitMessage(response: string): string {
     message = fenceMatch[1].trim();
   }
 
-  // Remove quotes if wrapped
-  if (message.startsWith('"') && message.endsWith('"')) {
-    message = message.slice(1, -1);
+  // Parse TITLE: and DESCRIPTION: format
+  const titleMatch = message.match(/TITLE:\s*(.+?)(?:\n|$)/i);
+  const descriptionMatch = message.match(/DESCRIPTION:\s*([\s\S]*?)$/i);
+
+  let title = '';
+  let description = '';
+
+  if (titleMatch) {
+    title = titleMatch[1].trim();
+    // Remove quotes if wrapped
+    if (title.startsWith('"') && title.endsWith('"')) {
+      title = title.slice(1, -1);
+    }
+  } else {
+    // Fallback: use first line as title
+    title = message.split('\n')[0].trim();
+    if (title.startsWith('"') && title.endsWith('"')) {
+      title = title.slice(1, -1);
+    }
   }
 
-  // Take first line if multi-line
-  const firstLine = message.split('\n')[0].trim();
+  if (descriptionMatch) {
+    description = descriptionMatch[1].trim();
+    // Clean up description - remove TITLE part if included
+    description = description.replace(/^TITLE:.*?\n/i, '').trim();
+  }
 
-  return firstLine;
+  return { title, description };
 }
 
 /**

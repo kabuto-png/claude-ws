@@ -1,12 +1,17 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+import { ResizeHandle } from '@/components/ui/resize-handle';
 import { FileTabContent } from './file-tab-content';
+import { useResizable } from '@/hooks/use-resizable';
 import { useSidebarStore } from '@/stores/sidebar-store';
+import { usePanelLayoutStore, PANEL_CONFIGS } from '@/stores/panel-layout-store';
 import { cn } from '@/lib/utils';
+
+const { minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH } = PANEL_CONFIGS.filePreview;
 
 export function FileTabsPanel() {
   const {
@@ -16,6 +21,16 @@ export function FileTabsPanel() {
     closeAllTabs,
     setActiveTabId,
   } = useSidebarStore();
+  const { widths, setWidth: setPanelWidth } = usePanelLayoutStore();
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  const { width, isResizing, handleMouseDown } = useResizable({
+    initialWidth: widths.filePreview,
+    minWidth: MIN_WIDTH,
+    maxWidth: MAX_WIDTH,
+    direction: 'right',
+    onWidthChange: (w) => setPanelWidth('filePreview', w),
+  });
 
   // Handle tab close with unsaved changes warning
   const handleCloseTab = useCallback((tabId: string, e?: React.MouseEvent) => {
@@ -52,7 +67,14 @@ export function FileTabsPanel() {
   const activeTab = openTabs.find(t => t.id === activeTabId);
 
   return (
-    <div className="h-full bg-background flex flex-col flex-1 min-w-0">
+    <div
+      ref={panelRef}
+      className={cn(
+        'h-full bg-background border-r flex flex-col relative shrink-0',
+        isResizing && 'select-none'
+      )}
+      style={{ width: `${width}px` }}
+    >
       {/* Tab bar */}
       <div className="flex items-center border-b bg-muted/30 shrink-0">
         <ScrollArea className="flex-1">
@@ -125,6 +147,13 @@ export function FileTabsPanel() {
           />
         )}
       </div>
+
+      {/* Resize handle */}
+      <ResizeHandle
+        position="right"
+        onMouseDown={handleMouseDown}
+        isResizing={isResizing}
+      />
     </div>
   );
 }

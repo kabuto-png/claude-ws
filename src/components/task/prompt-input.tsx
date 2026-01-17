@@ -284,7 +284,13 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
       return;
     }
 
-    if (!disableSubmitShortcut && (e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    // Enter to send, Shift+Enter or Ctrl+Enter for newline
+    if (!disableSubmitShortcut && e.key === 'Enter') {
+      if (e.shiftKey || e.ctrlKey) {
+        // Allow newline (default behavior)
+        return;
+      }
+      // Send message
       e.preventDefault();
       handleSubmit(e as any);
     }
@@ -437,10 +443,9 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 onFocus={() => {
-                  // Scroll to bottom of textarea on focus (for mobile virtual keyboard)
+                  // Set cursor position on focus (removed scrollIntoView to prevent layout shift)
                   setTimeout(() => {
                     textareaRef.current?.setSelectionRange(textareaRef.current.value.length, textareaRef.current.value.length);
-                    textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
                   }, 100);
                 }}
                 placeholder={placeholder}
@@ -522,10 +527,9 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
             </p>
             {!disableSubmitShortcut && (
               <p className="text-[10px] text-muted-foreground">
-                <kbd className="px-0.5 bg-muted rounded text-[9px]">
-                  {typeof navigator !== 'undefined' && navigator.platform?.includes('Mac') ? '⌘' : 'Ctrl'}
-                </kbd>
-                +<kbd className="px-0.5 bg-muted rounded text-[9px]">Enter</kbd> to send
+                <kbd className="px-0.5 bg-muted rounded text-[9px]">Enter</kbd> to send
+                <span className="mx-1">·</span>
+                <kbd className="px-0.5 bg-muted rounded text-[9px]">Shift</kbd>+<kbd className="px-0.5 bg-muted rounded text-[9px]">Enter</kbd> for newline
               </p>
             )}
           </div>

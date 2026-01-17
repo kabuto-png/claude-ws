@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { ChevronRight, ChevronDown, RefreshCw, Loader2, ArrowUpFromLine, ArrowDownToLine, RotateCcw, MoreHorizontal } from 'lucide-react';
+import { ChevronRight, ChevronDown, RefreshCw, Loader2, ArrowUpFromLine, ArrowDownToLine, RotateCcw } from 'lucide-react';
 import { GitCommitItem } from './git-commit-item';
 import { GraphRenderer } from './graph-renderer';
 import { CommitDetailsModal } from './commit-details-modal';
@@ -118,7 +118,7 @@ export function GitGraph() {
         <span className="flex-1">Graph</span>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="flex items-center gap-0.5">
           {/* Filter toggle */}
           <button
             className={cn(
@@ -187,22 +187,7 @@ export function GitGraph() {
             <RefreshCw className={cn('size-3.5', loading && 'animate-spin')} />
           </button>
           {/* More options */}
-          <button
-            className="p-0.5 hover:bg-accent rounded"
-            onClick={(e) => {
-              e.stopPropagation();
-              // TODO: Show dropdown menu with more options
-            }}
-            title="More Options"
-          >
-            <MoreHorizontal className="size-3.5" />
-          </button>
         </div>
-
-        {/* Commit count badge */}
-        <span className="px-1.5 py-0.5 bg-muted/80 rounded text-[10px] font-semibold ml-1">
-          {commits.length}
-        </span>
       </div>
 
       {/* Commit list */}
@@ -252,13 +237,22 @@ export function GitGraph() {
                 // Calculate SVG width based on rightmost lane
                 const svgWidth = maxLaneInRow * GRAPH_CONSTANTS.LANE_WIDTH + offsetX + GRAPH_CONSTANTS.DOT_RADIUS + 4;
 
+                const isHovered = hoveredCommit === commit.hash;
+
                 return (
                   <div
                     key={commit.hash}
-                    className="flex items-center"
+                    className={cn(
+                      'flex items-center transition-colors cursor-pointer',
+                      isHovered && 'bg-accent/50'
+                    )}
                     style={{ minHeight: `${GRAPH_CONSTANTS.ROW_HEIGHT}px` }}
                     onMouseEnter={() => setHoveredCommit(commit.hash)}
                     onMouseLeave={() => setHoveredCommit(null)}
+                    onClick={() => {
+                      setSelectedCommit(commit.hash);
+                      setModalOpen(true);
+                    }}
                   >
                     {/* Graph - LEFT side, dynamic width */}
                     <div className="shrink-0 mr-0.5">

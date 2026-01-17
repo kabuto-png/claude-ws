@@ -1,51 +1,29 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { GripVertical } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import { DiffViewer } from './diff-viewer';
+import { ResizeHandle } from '@/components/ui/resize-handle';
+import { useResizable } from '@/hooks/use-resizable';
 import { useSidebarStore } from '@/stores/sidebar-store';
+import { usePanelLayoutStore, PANEL_CONFIGS } from '@/stores/panel-layout-store';
 import { cn } from '@/lib/utils';
 
-const MIN_WIDTH = 300;
-const MAX_WIDTH = 900;
-const DEFAULT_WIDTH = 560;
+const { minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH } = PANEL_CONFIGS.diffPreview;
 const MOBILE_BREAKPOINT = 768;
 
 export function DiffPreviewPanel() {
   const { diffFile, diffStaged, closeDiff } = useSidebarStore();
-  const [width, setWidth] = useState(DEFAULT_WIDTH);
-  const [isResizing, setIsResizing] = useState(false);
+  const { widths, setWidth: setPanelWidth } = usePanelLayoutStore();
   const [isMobile, setIsMobile] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Handle resize
-  const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
-    setIsResizing(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isResizing) return;
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!panelRef.current) return;
-      const panelLeft = panelRef.current.getBoundingClientRect().left;
-      const newWidth = e.clientX - panelLeft;
-      setWidth(Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, newWidth)));
-    };
-
-    const handleMouseUp = () => {
-      setIsResizing(false);
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizing]);
+  const { width, isResizing, handleMouseDown } = useResizable({
+    initialWidth: widths.diffPreview,
+    minWidth: MIN_WIDTH,
+    maxWidth: MAX_WIDTH,
+    direction: 'right',
+    onWidthChange: (w) => setPanelWidth('diffPreview', w),
+  });
 
   // Detect mobile screen size
   useEffect(() => {
@@ -80,30 +58,25 @@ export function DiffPreviewPanel() {
     );
   }
 
-  // Desktop: side panel
+  // Desktop: side panel with fixed width and resize handle
   return (
     <div
       ref={panelRef}
       className={cn(
-        'h-full bg-background border-r flex flex-col flex-1 relative',
+        'h-full bg-background border-r flex flex-col relative shrink-0',
         'animate-in slide-in-from-left duration-200',
         isResizing && 'select-none'
       )}
-      style={{ minWidth: `${width}px` }}
+      style={{ width: `${width}px` }}
     >
       <DiffViewer filePath={diffFile} staged={diffStaged} onClose={closeDiff} />
 
-      {/* Resize handle - hidden on mobile */}
-      <div
-        className={cn(
-          'absolute right-0 top-0 h-full w-1.5 cursor-col-resize',
-          'hover:bg-primary/20 active:bg-primary/30 transition-colors',
-          'flex items-center justify-center group'
-        )}
+      {/* Resize handle */}
+      <ResizeHandle
+        position="right"
         onMouseDown={handleMouseDown}
-      >
-        <GripVertical className="size-4 text-muted-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity" />
-      </div>
+        isResizing={isResizing}
+      />
     </div>
   );
 }

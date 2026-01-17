@@ -21,7 +21,8 @@ export function GitPanel() {
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [commitMessage, setCommitMessage] = useState('');
+  const [commitTitle, setCommitTitle] = useState('');
+  const [commitDescription, setCommitDescription] = useState('');
   const [committing, setCommitting] = useState(false);
   const [generatingMessage, setGeneratingMessage] = useState(false);
   const [changesExpanded, setChangesExpanded] = useState(true);
@@ -166,7 +167,7 @@ export function GitPanel() {
   }, [activeProject?.path, fetchStatus]);
 
   const handleCommit = useCallback(async () => {
-    if (!activeProject?.path || !commitMessage.trim()) return;
+    if (!activeProject?.path || !commitTitle.trim()) return;
     setCommitting(true);
     try {
       // Auto-stage all changes before commit
@@ -176,24 +177,29 @@ export function GitPanel() {
         body: JSON.stringify({ projectPath: activeProject.path, all: true }),
       });
 
-      // Then commit
+      // Then commit with title and description
       const res = await fetch('/api/git/commit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectPath: activeProject.path, message: commitMessage }),
+        body: JSON.stringify({
+          projectPath: activeProject.path,
+          title: commitTitle,
+          description: commitDescription,
+        }),
       });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Failed to commit');
       }
-      setCommitMessage('');
+      setCommitTitle('');
+      setCommitDescription('');
       fetchStatus();
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to commit');
     } finally {
       setCommitting(false);
     }
-  }, [activeProject?.path, commitMessage, fetchStatus]);
+  }, [activeProject?.path, commitTitle, commitDescription, fetchStatus]);
 
   const handleGenerateMessage = useCallback(async () => {
     if (!activeProject?.path) return;
@@ -211,8 +217,9 @@ export function GitPanel() {
         throw new Error(data.error || 'Failed to generate message');
       }
 
-      const { message } = await res.json();
-      setCommitMessage(message);
+      const { title, description } = await res.json();
+      setCommitTitle(title || '');
+      setCommitDescription(description || '');
     } catch (err) {
       console.error('AI generation error:', err);
       alert(err instanceof Error ? err.message : 'Failed to generate commit message');
@@ -276,7 +283,7 @@ export function GitPanel() {
   }
 
   const totalChanges = (status?.staged.length || 0) + changes.length;
-  const canCommit = totalChanges > 0 && commitMessage.trim().length > 0;
+  const canCommit = totalChanges > 0 && commitTitle.trim().length > 0;
   const hasUnpushedCommits = (status?.ahead || 0) > 0 && totalChanges === 0; // Only show sync when no uncommitted changes
 
   return (
@@ -372,12 +379,26 @@ export function GitPanel() {
             {changesExpanded && (
               <div className="mt-0.5">
                 {/* Commit message input inside Changes section */}
-                <div className="px-2 pb-2">
+                <div className="px-2 pb-2 space-y-1.5">
+                  {/* Commit title input */}
+                  <input
+                    type="text"
+                    className="w-full px-2 py-1.5 text-sm bg-muted/50 border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                    placeholder="Commit title"
+                    value={commitTitle}
+                    onChange={(e) => setCommitTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canCommit) {
+                        handleCommit();
+                      }
+                    }}
+                  />
+                  {/* Commit description textarea */}
                   <textarea
                     className="w-full min-h-[60px] px-2 py-1.5 text-sm bg-muted/50 border rounded-md focus:outline-none focus:ring-1 focus:ring-ring resize-y"
-                    placeholder="Commit message"
-                    value={commitMessage}
-                    onChange={(e) => setCommitMessage(e.target.value)}
+                    placeholder="Description (optional)"
+                    value={commitDescription}
+                    onChange={(e) => setCommitDescription(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canCommit) {
                         handleCommit();
@@ -385,6 +406,28 @@ export function GitPanel() {
                     }}
                   />
                   <div className="flex gap-1.5 mt-1.5">
+                    {/* Commit or Sync button */}
+                    <Button
+                      className="flex-1"
+                      size="sm"
+                      disabled={(!canCommit && !hasUnpushedCommits) || committing || syncing}
+                      onClick={hasUnpushedCommits ? handleSync : handleCommit}
+                    >
+                      {committing || syncing ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : hasUnpushedCommits ? (
+                        <>
+                          <ArrowUp className="size-4 mr-1" />
+                          Sync changes
+                        </>
+                      ) : (
+                        <>
+                          <Check className="size-4 mr-1" />
+                          Commit changes
+                        </>
+                      )}
+                    </Button>
+
                     {/* Generate commit message button */}
                     <Button
                       variant="outline"
@@ -410,28 +453,6 @@ export function GitPanel() {
                           height={20}
                           className="opacity-80"
                         />
-                      )}
-                    </Button>
-
-                    {/* Commit or Sync button */}
-                    <Button
-                      className="flex-1"
-                      size="sm"
-                      disabled={(!canCommit && !hasUnpushedCommits) || committing || syncing}
-                      onClick={hasUnpushedCommits ? handleSync : handleCommit}
-                    >
-                      {committing || syncing ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : hasUnpushedCommits ? (
-                        <>
-                          <ArrowUp className="size-4 mr-1" />
-                          Sync changes
-                        </>
-                      ) : (
-                        <>
-                          <Check className="size-4 mr-1" />
-                          Commit changes
-                        </>
                       )}
                     </Button>
                   </div>

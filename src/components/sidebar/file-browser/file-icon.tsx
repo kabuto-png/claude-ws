@@ -8,6 +8,7 @@ interface FileIconProps {
   type: 'file' | 'directory';
   isExpanded?: boolean;
   className?: string;
+  size?: 'sm' | 'md';
 }
 
 // Icon config: [label, color]
@@ -43,6 +44,9 @@ const EXT_ICONS: Record<string, [string, string]> = {
   log: ['≡', 'text-muted-foreground'],
   env: ['⚙', 'text-yellow-600'],
   lock: ['🔒', 'text-slate-500'],
+  db: ['DB', 'text-cyan-600'],
+  sqlite: ['DB', 'text-cyan-600'],
+  sqlite3: ['DB', 'text-cyan-600'],
 };
 
 // Special files
@@ -55,9 +59,13 @@ const FILE_ICONS: Record<string, [string, string]> = {
   'tailwind.config.ts': ['TW', 'text-cyan-400'],
   'tailwind.config.js': ['TW', 'text-cyan-400'],
   '.gitignore': ['G', 'text-orange-500'],
+  '.npmignore': ['N', 'text-red-500'],
   '.env': ['⚙', 'text-yellow-600'],
   '.env.local': ['⚙', 'text-yellow-600'],
   'README.md': ['i', 'text-sky-500'],
+  'LICENSE': ['§', 'text-amber-500'],
+  'LICENSE.md': ['§', 'text-amber-500'],
+  'LICENSE.txt': ['§', 'text-amber-500'],
   'Dockerfile': ['🐳', 'text-sky-500'],
 };
 
@@ -66,18 +74,22 @@ function getExt(name: string): string {
   return i > 0 ? name.slice(i + 1).toLowerCase() : '';
 }
 
-export function FileIcon({ name, type, isExpanded, className }: FileIconProps) {
+export function FileIcon({ name, type, isExpanded, className, size = 'md' }: FileIconProps) {
+  const isSmall = size === 'sm';
+  const iconSize = isSmall ? 'size-3' : 'size-4';
+  const textSize = isSmall ? 'text-[7px] w-3' : 'text-[10px] w-4';
+
   // Folders
   if (type === 'directory') {
     const Icon = isExpanded ? FolderOpen : Folder;
-    return <Icon className={cn('size-4 text-amber-500', className)} />;
+    return <Icon className={cn(iconSize, 'text-amber-500', className)} />;
   }
 
   // Special files first
   const special = FILE_ICONS[name];
   if (special) {
     return (
-      <span className={cn('text-[10px] font-bold w-4 text-center', special[1], className)}>
+      <span className={cn(textSize, 'font-bold text-center', special[1], className)}>
         {special[0]}
       </span>
     );
@@ -88,12 +100,12 @@ export function FileIcon({ name, type, isExpanded, className }: FileIconProps) {
   const config = EXT_ICONS[ext];
   if (config) {
     return (
-      <span className={cn('text-[10px] font-bold w-4 text-center', config[1], className)}>
+      <span className={cn(textSize, 'font-bold text-center', config[1], className)}>
         {config[0]}
       </span>
     );
   }
 
   // Default
-  return <File className={cn('size-4 text-muted-foreground', className)} />;
+  return <File className={cn(iconSize, 'text-muted-foreground', className)} />;
 }
