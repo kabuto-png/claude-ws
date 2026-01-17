@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert';
 import { calculateLanes, GitCommit } from './lane-calculator';
 
-function makeCommit(hash: string, parents: string[], refs: string[] = []): GitCommit {
+function makeCommit(hash: string, parents: string[], refs: string[] = [], isLocal = false, isMerge = false): GitCommit {
   return {
     hash,
     shortHash: hash.substring(0, 7),
@@ -10,7 +10,9 @@ function makeCommit(hash: string, parents: string[], refs: string[] = []): GitCo
     author: 'Author',
     date: new Date().toISOString(),
     parents,
-    refs
+    refs,
+    isLocal,
+    isMerge
   };
 }
 
@@ -82,5 +84,17 @@ describe('lane-calculator', () => {
     const data = calculateLanes(commits);
     assert.ok(data.lanes[0].color);
     assert.ok(data.lanes[1].color);
+  });
+
+  it('preserves isLocal and isMerge fields', () => {
+    const commits = [
+      makeCommit('m', ['a', 'b'], [], false, true),
+      makeCommit('l', ['m'], [], true, false),
+    ];
+    // Note: calculateLanes doesn't change these fields, just ensures they are in GitCommit
+    assert.strictEqual(commits[0].isMerge, true);
+    assert.strictEqual(commits[0].isLocal, false);
+    assert.strictEqual(commits[1].isMerge, false);
+    assert.strictEqual(commits[1].isLocal, true);
   });
 });

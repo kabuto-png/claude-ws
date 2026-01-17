@@ -5,11 +5,11 @@
 
 import { LaneAssignment, GitCommit } from './lane-calculator';
 
-// Layout constants
-const LANE_WIDTH = 16;      // Horizontal spacing between lanes
-const ROW_HEIGHT = 32;      // Vertical spacing between commits
-const DOT_RADIUS = 4;       // Commit dot size
-const CURVE_CONTROL = 0.5;  // Bézier curve control point ratio
+// Layout constants - Mermaid.js style
+const LANE_WIDTH = 20;      // Horizontal spacing between lanes
+const ROW_HEIGHT = 24;      // Vertical spacing between commits
+const DOT_RADIUS = 5;       // Commit dot size (larger for visibility)
+const CURVE_CONTROL = 0.4;  // Bézier curve control point ratio
 
 export interface PathSegment {
   d: string;          // SVG path data
