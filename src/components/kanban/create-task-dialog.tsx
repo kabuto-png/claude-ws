@@ -20,7 +20,7 @@ import { Task } from '@/types';
 interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onTaskCreated?: (task: Task, startNow: boolean) => void;
+  onTaskCreated?: (task: Task, startNow: boolean, processedPrompt?: string) => void;
 }
 
 export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTaskDialogProps) {
@@ -69,12 +69,44 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
     setError(null);
 
     try {
+      // Process commands before creating task
+      let finalPrompt = chatPrompt.trim();
+      let descriptionForTask = chatPrompt.trim(); // Default to original input
+      let processedPrompt: string | undefined;
+
+      // Check if it's a command (starts with /)
+      if (finalPrompt.startsWith('/')) {
+        const match = finalPrompt.match(/^\/(\w+)(?::(\w+))?\s*(.*)/);
+        if (match) {
+          const [, cmdName, subCmd, args] = match;
+          descriptionForTask = finalPrompt; // Keep original command as description
+          try {
+            const res = await fetch(`/api/commands/${cmdName}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                subcommand: subCmd,
+                arguments: args.trim(),
+              }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              finalPrompt = data.prompt;
+              processedPrompt = finalPrompt; // Store processed prompt for sending
+            }
+          } catch (error) {
+            console.error('Failed to process command:', error);
+            // Continue with original prompt if command processing fails
+          }
+        }
+      }
+
       // Use title if provided, otherwise use message as title
       const taskTitle = title.trim() || chatPrompt.trim();
-      const task = await createTask(selectedProjectId, taskTitle, chatPrompt.trim());
+      const task = await createTask(selectedProjectId, taskTitle, descriptionForTask);
 
       // Notify parent that task was created
-      onTaskCreated?.(task, startNow);
+      onTaskCreated?.(task, startNow, processedPrompt);
 
       // Reset form
       setTitle('');

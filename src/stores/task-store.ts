@@ -8,6 +8,7 @@ interface TaskStore {
   selectedTask: Task | null;
   isCreatingTask: boolean;
   pendingAutoStartTask: string | null;
+  pendingAutoStartPrompt: string | null;
 
   // Actions
   setTasks: (tasks: Task[]) => void;
@@ -19,7 +20,7 @@ interface TaskStore {
   setSelectedTask: (task: Task | null) => void;
   setCreatingTask: (isCreating: boolean) => void;
   setTaskChatInit: (taskId: string, chatInit: boolean) => Promise<void>;
-  setPendingAutoStartTask: (taskId: string | null) => void;
+  setPendingAutoStartTask: (taskId: string | null, prompt?: string) => void;
   moveTaskToInProgress: (taskId: string) => Promise<void>;
 
   // API calls
@@ -35,6 +36,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   selectedTask: null,
   isCreatingTask: false,
   pendingAutoStartTask: null,
+  pendingAutoStartPrompt: null,
 
   setTasks: (tasks) => set({ tasks }),
 
@@ -92,7 +94,7 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
 
   setCreatingTask: (isCreating) => set({ isCreatingTask: isCreating }),
 
-  setPendingAutoStartTask: (taskId) => set({ pendingAutoStartTask: taskId }),
+  setPendingAutoStartTask: (taskId, prompt) => set({ pendingAutoStartTask: taskId, pendingAutoStartPrompt: prompt || null }),
 
   moveTaskToInProgress: async (taskId: string) => {
     const state = get();

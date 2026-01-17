@@ -40,7 +40,7 @@ const STATUS_CONFIG: Record<TaskStatus, { label: string; variant: 'default' | 's
 const STATUSES: TaskStatus[] = ['todo', 'in_progress', 'in_review', 'done', 'cancelled'];
 
 export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
-  const { selectedTask, setSelectedTask, updateTaskStatus, setTaskChatInit, pendingAutoStartTask, setPendingAutoStartTask, moveTaskToInProgress } = useTaskStore();
+  const { selectedTask, setSelectedTask, updateTaskStatus, setTaskChatInit, pendingAutoStartTask, pendingAutoStartPrompt, setPendingAutoStartTask, moveTaskToInProgress } = useTaskStore();
   const { activeProjectId, selectedProjectIds } = useProjectStore();
   const { getPendingFiles } = useAttachmentStore();
   const [conversationKey, setConversationKey] = useState(0);
@@ -162,7 +162,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
       !hasAutoStartedRef.current &&
       !isRunning &&
       isConnected &&
-      selectedTask.description
+      (pendingAutoStartPrompt || selectedTask.description)
     ) {
       hasAutoStartedRef.current = true;
       // Move task to In Progress when auto-starting
@@ -176,7 +176,14 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
       }
       // Small delay to ensure component and socket are ready
       setTimeout(() => {
-        startAttempt(selectedTask.id, selectedTask.description!);
+        // Double-check isRunning and hasAutoStartedRef to prevent duplicate starts
+        if (!isRunning && hasAutoStartedRef.current && selectedTask?.id === pendingAutoStartTask) {
+          // For commands: use processed prompt to send, original command for display
+          // For regular messages: use the same for both
+          const promptToSend = pendingAutoStartPrompt || selectedTask.description!;
+          const promptToDisplay = pendingAutoStartPrompt ? selectedTask.description! : undefined;
+          startAttempt(selectedTask.id, promptToSend, promptToDisplay);
+        }
         setPendingAutoStartTask(null);
       }, 50);
     }
@@ -184,7 +191,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
     if (selectedTask?.id !== pendingAutoStartTask) {
       hasAutoStartedRef.current = false;
     }
-  }, [pendingAutoStartTask, selectedTask, isRunning, isConnected, setPendingAutoStartTask, startAttempt, setTaskChatInit, moveTaskToInProgress]);
+  }, [pendingAutoStartTask, pendingAutoStartPrompt, selectedTask, isRunning, isConnected, setPendingAutoStartTask, startAttempt, setTaskChatInit, moveTaskToInProgress]);
 
   // Reset state when selectedTask changes
   useEffect(() => {

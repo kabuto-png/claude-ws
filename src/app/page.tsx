@@ -93,10 +93,10 @@ function KanbanApp() {
   }, [selectedProjectIds, projectLoading, fetchTasks]);
 
   // Handle task created event - select task if startNow is true
-  const handleTaskCreated = (task: Task, startNow: boolean) => {
+  const handleTaskCreated = (task: Task, startNow: boolean, processedPrompt?: string) => {
     if (startNow) {
       setSelectedTask(task);
-      setPendingAutoStartTask(task.id);
+      setPendingAutoStartTask(task.id, processedPrompt);
     }
   };
 
