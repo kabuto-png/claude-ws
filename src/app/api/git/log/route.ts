@@ -33,12 +33,13 @@ async function getRemoteCommitHashes(cwd: string): Promise<Set<string>> {
   }
 }
 
-// GET /api/git/log?path=/project/path&limit=50
+// GET /api/git/log?path=/project/path&limit=50&filter=current
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const projectPath = searchParams.get('path');
     const limit = parseInt(searchParams.get('limit') || '50', 10);
+    const filter = searchParams.get('filter') || 'current'; // 'current' or 'all'
 
     if (!projectPath) {
       return NextResponse.json(
@@ -55,16 +56,26 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Build git log args based on filter
+    const logArgs = ['log'];
+
+    if (filter === 'all') {
+      logArgs.push('--all');
+    } else {
+      // Default: current branch only (HEAD)
+      logArgs.push('HEAD');
+    }
+
+    logArgs.push(
+      `--max-count=${limit}`,
+      '--format=%H|%h|%s|%an|%ar|%P|%D'
+    );
+
     // Get git log with graph info
     // Format: hash|short_hash|subject|author|date|parents|refs
     const { stdout } = await execFileAsync(
       'git',
-      [
-        'log',
-        '--all',
-        `--max-count=${limit}`,
-        '--format=%H|%h|%s|%an|%ar|%P|%D',
-      ],
+      logArgs,
       {
         cwd: resolvedPath,
         timeout: GIT_TIMEOUT,

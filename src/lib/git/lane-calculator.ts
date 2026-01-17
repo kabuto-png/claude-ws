@@ -118,10 +118,10 @@ export function calculateLanes(commits: GitCommit[]): GraphData {
     let lane = activeLanes.indexOf(commit.hash);
 
     if (lane === -1) {
-      // Not expected - find first free lane, max 2 lanes
+      // Not expected - find first free lane, max 4 lanes (expandable)
       lane = activeLanes.findIndex(h => h === null);
       if (lane === -1) {
-        lane = activeLanes.length < 2 ? activeLanes.length : 0;
+        lane = activeLanes.length < 4 ? activeLanes.length : 0;
       }
     }
 
@@ -155,7 +155,7 @@ export function calculateLanes(commits: GitCommit[]): GraphData {
 
       // Additional parents - assign to available lanes
       for (let p = 1; p < commit.parents.length; p++) {
-        const parentLane = p < 2 ? p : (lane === 0 ? 1 : 0);
+        const parentLane = p < 4 ? p : (lane === 0 ? 1 : 0);
         activeLanes[parentLane] = commit.parents[p];
 
         // Assign different color for merge parent
@@ -167,10 +167,9 @@ export function calculateLanes(commits: GitCommit[]): GraphData {
     }
   }
 
-  const maxLane = Math.min(
-    laneAssignments.length > 0 ? Math.max(...laneAssignments.map(a => a.lane)) : 0,
-    1
-  );
+  const maxLane = laneAssignments.length > 0
+    ? Math.max(...laneAssignments.map(a => a.lane))
+    : 0;
 
   return {
     lanes: laneAssignments,

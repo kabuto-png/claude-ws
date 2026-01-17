@@ -33,6 +33,7 @@ export function GitGraph() {
   const [hoveredCommit, setHoveredCommit] = useState<string | null>(null);
   const [selectedCommit, setSelectedCommit] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [filter, setFilter] = useState<'current' | 'all'>('current');
 
   const fetchLog = useCallback(async () => {
     if (!activeProject?.path) return;
@@ -41,7 +42,7 @@ export function GitGraph() {
     setError(null);
     try {
       const res = await fetch(
-        `/api/git/log?path=${encodeURIComponent(activeProject.path)}&limit=30`
+        `/api/git/log?path=${encodeURIComponent(activeProject.path)}&limit=30&filter=${filter}`
       );
       if (!res.ok) {
         const data = await res.json();
@@ -55,7 +56,7 @@ export function GitGraph() {
     } finally {
       setLoading(false);
     }
-  }, [activeProject?.path]);
+  }, [activeProject?.path, filter]);
 
   useEffect(() => {
     fetchLog();
@@ -118,6 +119,26 @@ export function GitGraph() {
 
         {/* Action buttons */}
         <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Filter toggle */}
+          <button
+            className={cn(
+              'p-0.5 hover:bg-accent rounded',
+              filter === 'current' && 'bg-accent'
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              setFilter(filter === 'current' ? 'all' : 'current');
+            }}
+            title={filter === 'current' ? 'Show all branches' : 'Show current branch only'}
+          >
+            <svg className="size-3.5" viewBox="0 0 16 16" fill="currentColor">
+              {filter === 'current' ? (
+                <path d="M8 2a6 6 0 100 12A6 6 0 008 2zm0 1.5a4.5 4.5 0 110 9 4.5 4.5 0 010-9z"/>
+              ) : (
+                <path d="M8 2a6 6 0 100 12A6 6 0 008 2zM3.5 8a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0z"/>
+              )}
+            </svg>
+          </button>
           {/* Fetch */}
           <button
             className="p-0.5 hover:bg-accent rounded"
@@ -198,52 +219,146 @@ export function GitGraph() {
               No commits yet
             </div>
           ) : graphData ? (
-            <div className="relative pl-2">
-              {/* Render SVG graph overlay */}
-              <div className="absolute left-2 top-0 z-0">
-                <GraphRenderer
-                  lanes={graphData.lanes}
-                  paths={graphData.paths}
-                  maxLane={graphData.maxLane}
-                  highlightedCommit={hoveredCommit || undefined}
-                  onCommitClick={(hash) => {
-                    setSelectedCommit(hash);
-                    setModalOpen(true);
-                  }}
-                />
-              </div>
+            <div className="space-y-0">
+              {commits.map((commit, index) => {
+                const lane = graphData.lanes[index];
+                const offsetX = 6;
 
-              {/* Render commit items */}
-              <div className="relative z-10">
-                {commits.map((commit, index) => {
-                  const lane = graphData.lanes[index];
+                // Find the rightmost lane in this row
+                let maxLaneInRow = lane.lane;
 
-                  return (
-                    <div
-                      key={commit.hash}
-                      className="flex items-center"
-                      style={{ height: `${GRAPH_CONSTANTS.ROW_HEIGHT}px` }}
-                      onMouseEnter={() => setHoveredCommit(commit.hash)}
-                      onMouseLeave={() => setHoveredCommit(null)}
-                    >
-                      {/* Commit info with dynamic margin based on lane */}
-                      <div style={{ marginLeft: `${lane.lane * GRAPH_CONSTANTS.LANE_WIDTH + 18}px` }} className="flex-1 min-w-0">
-                        <GitCommitItem
-                          commit={commit}
-                          isHead={commit.hash === head}
-                          color={lane.color}
-                          isMerge={commit.parents.length > 1}
-                          showLine={false}
-                          onClick={() => {
-                            setSelectedCommit(commit.hash);
-                            setModalOpen(true);
-                          }}
-                        />
-                      </div>
+                // Check ALL commits to see if any line passes through this row
+                commits.forEach((c, idx) => {
+                  c.parents.forEach((parentHash) => {
+                    const parentIndex = commits.findIndex(p => p.hash === parentHash);
+                    if (parentIndex === -1) return;
+
+                    // Check if line from idx to parentIndex passes through current row (index)
+                    const minIdx = Math.min(idx, parentIndex);
+                    const maxIdx = Math.max(idx, parentIndex);
+
+                    if (index >= minIdx && index <= maxIdx) {
+                      // This line passes through current row
+                      const commitLane = graphData.lanes[idx].lane;
+                      const parentLane = graphData.lanes[parentIndex].lane;
+
+                      // Track the highest lane involved
+                      if (commitLane > maxLaneInRow) maxLaneInRow = commitLane;
+                      if (parentLane > maxLaneInRow) maxLaneInRow = parentLane;
+                    }
+                  });
+                });
+
+                // Calculate SVG width based on rightmost lane
+                const svgWidth = maxLaneInRow * GRAPH_CONSTANTS.LANE_WIDTH + offsetX + GRAPH_CONSTANTS.DOT_RADIUS + 4;
+
+                return (
+                  <div
+                    key={commit.hash}
+                    className="flex items-center"
+                    style={{ minHeight: `${GRAPH_CONSTANTS.ROW_HEIGHT}px` }}
+                    onMouseEnter={() => setHoveredCommit(commit.hash)}
+                    onMouseLeave={() => setHoveredCommit(null)}
+                  >
+                    {/* Graph - LEFT side, dynamic width */}
+                    <div className="shrink-0 mr-0.5">
+                      <svg
+                        width={svgWidth}
+                        height={GRAPH_CONSTANTS.ROW_HEIGHT}
+                        className="overflow-visible"
+                      >
+                        {/* Render connecting lines */}
+                        {graphData.paths
+                          .filter((path) => {
+                            const rowY = index * GRAPH_CONSTANTS.ROW_HEIGHT + GRAPH_CONSTANTS.ROW_HEIGHT / 2;
+                            return path.d.includes(` ${rowY}`) || path.d.includes(`,${rowY}`);
+                          })
+                          .map((path, pathIdx) => {
+                            let d = path.d;
+                            const offsetX = 6;
+                            const baseY = index * GRAPH_CONSTANTS.ROW_HEIGHT;
+
+                            d = d.replace(/M ([\d.]+) ([\d.]+)/g, (_, x, y) =>
+                              `M ${parseFloat(x) + offsetX} ${parseFloat(y) - baseY}`
+                            );
+                            d = d.replace(/L ([\d.]+) ([\d.]+)/g, (_, x, y) =>
+                              `L ${parseFloat(x) + offsetX} ${parseFloat(y) - baseY}`
+                            );
+                            d = d.replace(/C ([\d.]+) ([\d.]+), ([\d.]+) ([\d.]+), ([\d.]+) ([\d.]+)/g,
+                              (_, x1, y1, x2, y2, x3, y3) =>
+                                `C ${parseFloat(x1) + offsetX} ${parseFloat(y1) - baseY}, ${parseFloat(x2) + offsetX} ${parseFloat(y2) - baseY}, ${parseFloat(x3) + offsetX} ${parseFloat(y3) - baseY}`
+                            );
+
+                            return (
+                              <path
+                                key={`path-${pathIdx}`}
+                                d={d}
+                                stroke={path.color}
+                                strokeWidth={2}
+                                fill="none"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            );
+                          })}
+
+                        {/* Commit dot */}
+                        {(() => {
+                          const offsetX = 6;
+                          const dotX = lane.lane * GRAPH_CONSTANTS.LANE_WIDTH + offsetX;
+                          const dotY = GRAPH_CONSTANTS.ROW_HEIGHT / 2;
+                          const isHighlighted = lane.commitHash === hoveredCommit;
+
+                          return (
+                            <g>
+                              {/* Glow effect on hover */}
+                              {isHighlighted && (
+                                <circle
+                                  cx={dotX}
+                                  cy={dotY}
+                                  r={GRAPH_CONSTANTS.DOT_RADIUS + 3}
+                                  fill={lane.color}
+                                  fillOpacity={0.3}
+                                  className="animate-pulse"
+                                />
+                              )}
+                              {/* Main dot */}
+                              <circle
+                                cx={dotX}
+                                cy={dotY}
+                                r={GRAPH_CONSTANTS.DOT_RADIUS}
+                                fill={lane.color}
+                                stroke={isHighlighted ? '#fff' : 'rgba(0,0,0,0.15)'}
+                                strokeWidth={isHighlighted ? 1.5 : 1}
+                                className="cursor-pointer transition-all"
+                                onClick={() => {
+                                  setSelectedCommit(commit.hash);
+                                  setModalOpen(true);
+                                }}
+                              />
+                            </g>
+                          );
+                        })()}
+                      </svg>
                     </div>
-                  );
-                })}
-              </div>
+
+                    {/* Commit text - RIGHT side, takes remaining space */}
+                    <div className="flex-1 min-w-0">
+                      <GitCommitItem
+                        commit={commit}
+                        isHead={commit.hash === head}
+                        color={lane.color}
+                        isMerge={commit.parents.length > 1}
+                        showLine={false}
+                        onClick={() => {
+                          setSelectedCommit(commit.hash);
+                          setModalOpen(true);
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           ) : null}
         </div>

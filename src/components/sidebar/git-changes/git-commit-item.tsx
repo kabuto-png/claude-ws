@@ -94,57 +94,80 @@ export function GitCommitItem({
   showLine,
   onClick,
 }: GitCommitItemProps) {
-  const { branches, tags } = parseRefs(commit.refs);
   const { prefix, scope, subject } = parseCommitMessage(commit.message);
+  const { branches, tags } = parseRefs(commit.refs);
+
+  // Find current branch (has "HEAD -> " in refs)
+  const currentBranchRef = commit.refs.find(ref => ref.startsWith('HEAD -> '));
+  const currentBranch = currentBranchRef?.replace('HEAD -> ', '') || null;
+
+  // Separate local and remote branches
+  const localBranches = branches.filter(b => !b.includes('/'));
+  const remoteBranches = branches.filter(b => b.includes('/'));
 
   return (
     <div
-      className="flex-1 min-w-0 px-2 hover:bg-accent/30 cursor-pointer group flex items-center"
-      style={{ minHeight: '28px' }}
+      className="flex-1 min-w-0 pl-0 pr-2 flex items-center gap-1.5 hover:bg-accent/30 cursor-pointer group rounded-sm transition-colors"
       onClick={onClick}
+      title={`${commit.message}\n${commit.author} • ${commit.date} • ${commit.shortHash}`}
     >
-      <div className="flex items-center gap-1.5 flex-wrap flex-1">
-        <span className="text-sm truncate flex-1 min-w-0 leading-[28px]">
-          {prefix && (
-            <>
-              <span className={cn('font-semibold', getCommitTypeColor(prefix))}>
-                {prefix}
-              </span>
-              {scope && (
-                <span className="text-muted-foreground/70">{scope}</span>
-              )}
-              <span className="text-muted-foreground">: </span>
-            </>
-          )}
-          <span>{subject}</span>
-        </span>
+      {/* Commit message - single line only */}
+      <div className="text-[12px] leading-tight truncate flex-1 min-w-0">
+        {prefix && (
+          <>
+            <span className={cn('font-semibold', getCommitTypeColor(prefix))}>
+              {prefix}
+            </span>
+            {scope && (
+              <span className="text-muted-foreground/70">{scope}</span>
+            )}
+            <span className="text-muted-foreground">: </span>
+          </>
+        )}
+        <span>{subject}</span>
+      </div>
 
-        {branches.map((branch) => (
+      {/* Branch badges */}
+      <div className="flex items-center gap-1 shrink-0">
+        {/* Local branches - color matches lane color */}
+        {localBranches.slice(0, 1).map((branch) => (
           <span
             key={branch}
-            className={cn(
-              'px-1 py-0.5 text-[10px] font-medium rounded shrink-0 leading-none',
-              branch === 'main' || branch === 'master'
-                ? 'bg-blue-500/20 text-blue-400'
-                : 'bg-green-500/20 text-green-400'
-            )}
+            className="px-1.5 py-0.5 rounded text-[10px] font-medium leading-none"
+            style={{
+              backgroundColor: `${color}20`,
+              color: color,
+            }}
           >
-            {branch}
+            @{branch}
           </span>
         ))}
 
-        {tags.map((tag) => (
+        {/* Tags - color matches lane color */}
+        {tags.slice(0, 1).map((tag) => (
           <span
             key={tag}
-            className="px-1 py-0.5 text-[10px] font-medium rounded bg-yellow-500/20 text-yellow-400 shrink-0 leading-none"
+            className="px-1.5 py-0.5 rounded text-[10px] font-medium leading-none"
+            style={{
+              backgroundColor: `${color}20`,
+              color: color,
+            }}
           >
             {tag}
           </span>
         ))}
 
-        <div className="text-[9px] text-muted-foreground/70 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-          {commit.author} • {commit.date}
-        </div>
+        {/* Remote branches - cloud icon */}
+        {remoteBranches.length > 0 && (
+          <svg
+            className="size-3.5"
+            viewBox="0 0 16 16"
+            fill="currentColor"
+            style={{ color: color }}
+          >
+            <path d="M4.406 3.342A5.53 5.53 0 0 1 8 2c2.69 0 4.923 2 5.166 4.579C14.758 6.804 16 8.137 16 9.773 16 11.569 14.502 13 12.687 13H3.781C1.708 13 0 11.366 0 9.318c0-1.763 1.266-3.223 2.942-3.593.143-.863.698-1.723 1.464-2.383zm.653.757c-.757.653-1.153 1.44-1.153 2.056v.448l-.445.049C2.064 6.805 1 7.952 1 9.318 1 10.785 2.23 12 3.781 12h8.906C13.98 12 15 10.988 15 9.773c0-1.216-1.02-2.228-2.313-2.228h-.5v-.5C12.188 4.825 10.328 3 8 3a4.53 4.53 0 0 0-2.941 1.1z"/>
+          </svg>
+        )}
       </div>
     </div>
   );

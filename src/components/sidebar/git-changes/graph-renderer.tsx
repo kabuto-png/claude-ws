@@ -7,8 +7,21 @@
 
 import { LaneAssignment } from '@/lib/git/lane-calculator';
 import { PathSegment, GRAPH_CONSTANTS } from '@/lib/git/path-generator';
+import { cn } from '@/lib/utils';
 
 const { LANE_WIDTH, ROW_HEIGHT, DOT_RADIUS } = GRAPH_CONSTANTS;
+
+interface GitCommit {
+  hash: string;
+  shortHash: string;
+  message: string;
+  author: string;
+  date: string;
+  parents: string[];
+  refs: string[];
+  isLocal?: boolean;
+  isMerge?: boolean;
+}
 
 interface GraphRendererProps {
   lanes: LaneAssignment[];
@@ -16,6 +29,32 @@ interface GraphRendererProps {
   maxLane: number;
   highlightedCommit?: string;
   onCommitClick?: (hash: string) => void;
+  commits?: GitCommit[]; // New: for rendering branch badges
+}
+
+// Parse refs to extract branch/tag names
+function parseRefs(refs: string[]): { branches: string[]; tags: string[] } {
+  const branches: string[] = [];
+  const tags: string[] = [];
+
+  for (const ref of refs) {
+    if (ref.startsWith('HEAD -> ')) {
+      branches.push(ref.replace('HEAD -> ', ''));
+    } else if (ref.startsWith('tag: ')) {
+      tags.push(ref.replace('tag: ', ''));
+    } else if (ref.includes('/')) {
+      // Remote branch like origin/main
+      branches.push(ref.split('/').pop() || ref);
+    } else {
+      branches.push(ref);
+    }
+  }
+
+  // Deduplicate
+  return {
+    branches: [...new Set(branches)],
+    tags: [...new Set(tags)],
+  };
 }
 
 export function GraphRenderer({
@@ -24,9 +63,10 @@ export function GraphRenderer({
   maxLane,
   highlightedCommit,
   onCommitClick,
+  commits = [],
 }: GraphRendererProps) {
-  const offsetX = 10;
-  const width = (maxLane + 1) * LANE_WIDTH + offsetX + 4;
+  const offsetX = 6; // Reduced offset for more compact layout
+  const width = (maxLane + 1) * LANE_WIDTH + offsetX + 150; // Extra space for branch badges
   const height = lanes.length * ROW_HEIGHT;
 
   return (
@@ -63,17 +103,24 @@ export function GraphRenderer({
         );
       })}
 
-      {/* Render commit dots */}
+      {/* Render commit dots and inline branch badges */}
       {lanes.map((lane, idx) => {
         const isHighlighted = lane.commitHash === highlightedCommit;
-        const isMerge = lane.inLanes.length > 1;
+        const commit = commits[idx];
+        const { branches, tags } = commit ? parseRefs(commit.refs) : { branches: [], tags: [] };
+        const dotX = lane.lane * LANE_WIDTH + offsetX;
+        const dotY = idx * ROW_HEIGHT + ROW_HEIGHT / 2;
+
+        // Calculate badge position (right of dot with small gap)
+        const badgeX = dotX + DOT_RADIUS + 8;
+        const badgeY = dotY;
 
         return (
           <g key={lane.commitHash}>
             {/* Outer circle (border) */}
             <circle
-              cx={lane.lane * LANE_WIDTH + offsetX}
-              cy={idx * ROW_HEIGHT + ROW_HEIGHT / 2}
+              cx={dotX}
+              cy={dotY}
               r={DOT_RADIUS}
               fill={lane.color}
               stroke="rgba(0,0,0,0.15)"
@@ -84,14 +131,61 @@ export function GraphRenderer({
             {/* Inner highlight circle */}
             {isHighlighted && (
               <circle
-                cx={lane.lane * LANE_WIDTH + offsetX}
-                cy={idx * ROW_HEIGHT + ROW_HEIGHT / 2}
+                cx={dotX}
+                cy={dotY}
                 r={DOT_RADIUS + 2}
                 fill="none"
                 stroke="#fff"
                 strokeWidth={2}
                 className="animate-pulse"
               />
+            )}
+
+            {/* Branch badges inline with dot */}
+            {(branches.length > 0 || tags.length > 0) && (
+              <foreignObject
+                x={badgeX}
+                y={badgeY - 10}
+                width={120}
+                height={20}
+                className="overflow-visible"
+              >
+                <div className="flex items-center gap-1" style={{ fontSize: '10px' }}>
+                  {/* Show max 2 badges */}
+                  {branches.slice(0, 2).map((branch) => (
+                    <span
+                      key={branch}
+                      className={cn(
+                        'px-1 py-0.5 rounded shrink-0 leading-none font-medium',
+                        branch === 'main' || branch === 'master'
+                          ? 'bg-blue-500/20 text-blue-400'
+                          : 'bg-green-500/20 text-green-400'
+                      )}
+                      style={{ fontSize: '10px' }}
+                    >
+                      {branch.length > 12 ? branch.slice(0, 12) + '...' : branch}
+                    </span>
+                  ))}
+                  {tags.slice(0, 1).map((tag) => (
+                    <span
+                      key={tag}
+                      className="px-1 py-0.5 rounded bg-yellow-500/20 text-yellow-400 shrink-0 leading-none font-medium"
+                      style={{ fontSize: '10px' }}
+                    >
+                      {tag.length > 8 ? tag.slice(0, 8) + '...' : tag}
+                    </span>
+                  ))}
+                  {/* Overflow indicator */}
+                  {branches.length + tags.length > 3 && (
+                    <span
+                      className="text-muted-foreground/50 text-[9px]"
+                      title={`${branches.length + tags.length - 3} more`}
+                    >
+                      +{branches.length + tags.length - 3}
+                    </span>
+                  )}
+                </div>
+              </foreignObject>
             )}
           </g>
         );
