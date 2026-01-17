@@ -8,6 +8,9 @@
   - Implemented lane calculation logic for topological branch visualization.
   - Added SVG path generation for smooth branch connections.
   - Added deterministic branch coloring based on branch names.
+  - Implemented primary branch prioritization (main/master always amber).
+  - Added orphan commit detection with muted gray coloring.
+  - Improved color inheritance from parent commits for visual continuity.
 - **Git Remote Operations**: Added Fetch, Pull, and Push buttons to the Git Graph header.
 
 ### Changed

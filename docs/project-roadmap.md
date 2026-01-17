@@ -6,6 +6,7 @@
 - [x] AI Commit Message Generation
 - [x] Visual Git Graph (Topological lanes)
 - [x] Local vs Remote commit detection (VSCode-style colors Phase 1)
+- [x] Enhanced Branch Coloring (main/master priority, Phase 2)
 - [ ] Merge Conflict resolution UI
 - [ ] Branch management (create, delete, switch)
 
