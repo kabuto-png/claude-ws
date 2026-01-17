@@ -45,15 +45,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get staged diff
+    // Get diff of all changes (both staged and unstaged)
     let diffOutput: string;
     try {
-      const { stdout } = await execFileAsync('git', ['diff', '--cached'], {
+      // First get staged changes
+      const { stdout: stagedDiff } = await execFileAsync('git', ['diff', '--cached'], {
         cwd: resolvedPath,
         maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large diffs
         timeout: GIT_TIMEOUT,
       });
-      diffOutput = stdout;
+
+      // Then get unstaged changes
+      const { stdout: unstagedDiff } = await execFileAsync('git', ['diff'], {
+        cwd: resolvedPath,
+        maxBuffer: 10 * 1024 * 1024,
+        timeout: GIT_TIMEOUT,
+      });
+
+      // Combine both diffs
+      diffOutput = stagedDiff + unstagedDiff;
     } catch (error) {
       const err = error as { code?: string; message?: string };
       if (err.code === 'ETIMEDOUT') {
@@ -69,10 +79,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if there are staged changes
+    // Check if there are any changes
     if (!diffOutput || diffOutput.trim().length === 0) {
       return NextResponse.json(
-        { error: 'No staged files to commit' },
+        { error: 'No changes to generate commit message for' },
         { status: 400 }
       );
     }

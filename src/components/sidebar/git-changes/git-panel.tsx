@@ -364,14 +364,14 @@ export function GitPanel() {
                     <button
                       className="flex items-center justify-center size-8 hover:bg-accent rounded-md border bg-muted/50 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
                       title={
-                        (status?.staged.length || 0) === 0
-                          ? 'Stage files first to generate commit message'
+                        totalChanges === 0
+                          ? 'No changes to generate commit message for'
                           : generatingMessage
                           ? 'Generating...'
                           : 'Generate commit message with AI'
                       }
                       onClick={handleGenerateMessage}
-                      disabled={generatingMessage || (status?.staged.length || 0) === 0}
+                      disabled={generatingMessage || totalChanges === 0}
                     >
                       {generatingMessage ? (
                         <Loader2 className="size-4 animate-spin" />
