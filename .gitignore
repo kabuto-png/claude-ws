@@ -45,6 +45,13 @@ next-env.d.ts
 /plans/
 /uploads/
 
+# database files
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+/drizzle/
+
 # build artifacts
 *.tgz
 /dist/
