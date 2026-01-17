@@ -22,11 +22,11 @@ export interface UsageStats {
   durationMs: number;
   durationApiMs: number;
 
-  // Context usage tracking (ClaudeKit-compatible)
-  contextUsed: number;        // Total context (input + output, following ClaudeKit)
+  // Context usage tracking (Active Context Only)
+  contextUsed: number;        // Active context tokens (excludes cache_read)
   contextLimit: number;        // Max context window (200K for Opus/Sonnet)
   contextPercentage: number;   // (contextUsed / contextLimit) * 100
-  baselineContext: number;     // Initial context before any messages (system prompt, tools, skills, etc.)
+  baselineContext: number;     // Cached baseline tokens (for reference, not in active count)
 
   // Context health metrics (ClaudeKit formulas)
   contextHealth?: ContextHealth;
@@ -138,53 +138,51 @@ class UsageTracker extends EventEmitter {
       stats.totalCacheReadTokens += usage.cache_read_input_tokens || 0;
       stats.totalTokens = stats.totalInputTokens + stats.totalOutputTokens;
 
-      // Calculate context usage following ClaudeKit Engineer's formula:
-      // usage = (context_input + context_output) / context_size × 100
+      // Calculate ACTIVE context usage (excludes cache_read)
       //
-      // Context input components:
-      // - cache_read_input_tokens: Baseline context (system prompt, tools, skills, previous messages)
-      // - input_tokens: New user message + any new content
-      // - cache_creation_input_tokens: New cache entries being created
+      // According to Anthropic's Prompt Caching:
+      // - cache_read_input_tokens: Tokens loaded FROM cache (NOT in active window)
+      // - cache_creation_input_tokens: NEW tokens being cached (IN active window)
+      // - input_tokens: New user input (IN active window)
+      // - output_tokens: Model response (IN active window)
       //
-      // Context output:
-      // - output_tokens: Current response from Claude
+      // Active Context Window (200K limit) includes:
+      // - input_tokens: New user message
+      // - cache_creation_input_tokens: New cache entries
+      // - output_tokens: Current response
       //
-      // Note: ClaudeKit includes output_tokens in context calculation
-      // This differs from pure input-only tracking
+      // Cache read does NOT count toward 200K limit (stored separately)
       const inputTokens = usage.input_tokens || 0;
       const cacheRead = usage.cache_read_input_tokens || 0;
       const cacheCreation = usage.cache_creation_input_tokens || 0;
       const outputTokens = usage.output_tokens || 0;
 
-      // Track baseline from first turn's cache_read
+      // Track baseline from first turn's cache_read (for reference only)
       if (stats.numTurns === 0 && cacheRead > 0) {
         stats.baselineContext = cacheRead;
-        console.log(`[UsageTracker] First turn baseline context: ${cacheRead} tokens`);
+        console.log(`[UsageTracker] First turn baseline (cached): ${cacheRead} tokens`);
       }
 
-      // Current input context = all input sources from this turn
-      const currentInputContext = inputTokens + cacheRead + cacheCreation;
+      // Active context = NEW tokens only (cache_read NOT included)
+      const activeContext = inputTokens + cacheCreation + outputTokens;
 
-      // Total context = input + output (ClaudeKit formula)
-      const totalContext = currentInputContext + outputTokens;
-
-      // Update stats with current context (snapshot, not cumulative)
-      stats.contextUsed = totalContext;
+      // Update stats with active context (what's actually in 200K window)
+      stats.contextUsed = activeContext;
       stats.contextPercentage = (stats.contextUsed / stats.contextLimit) * 100;
 
-      // Calculate health metrics using ClaudeKit formulas
+      // Calculate health metrics using active context
       stats.contextHealth = calculateContextHealth(
-        currentInputContext,
-        outputTokens,
+        inputTokens + cacheCreation, // active input
+        outputTokens,                 // active output
         stats.contextLimit
       );
 
       console.log(
-        `[UsageTracker] Context: ${stats.contextUsed}/${stats.contextLimit} ` +
+        `[UsageTracker] Active Context: ${stats.contextUsed}/${stats.contextLimit} ` +
         `(${stats.contextPercentage.toFixed(1)}%) | ` +
         `Health: ${stats.contextHealth.status} | ` +
-        `Input: ${inputTokens} | CacheRead: ${cacheRead} | ` +
-        `CacheCreate: ${cacheCreation} | Output: ${outputTokens}`
+        `New: ${inputTokens} | CacheCreate: ${cacheCreation} | ` +
+        `Output: ${outputTokens} | CacheRead: ${cacheRead} (not in active)`
       );
     }
 

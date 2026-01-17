@@ -204,3 +204,29 @@ export interface Checkpoint {
     prompt: string;
   };
 }
+
+// Git commit details types
+export interface CommitFile {
+  path: string;
+  status: 'A' | 'M' | 'D' | 'R' | 'C'; // Added, Modified, Deleted, Renamed, Copied
+  additions: number;
+  deletions: number;
+  oldPath?: string; // For renames
+}
+
+export interface CommitDetails {
+  hash: string;
+  shortHash: string;
+  author: string;
+  authorEmail: string;
+  date: string;        // ISO format
+  dateRelative: string; // "2 days ago"
+  subject: string;     // First line
+  body: string;        // Remaining lines (may be empty)
+  files: CommitFile[];
+  stats: {
+    filesChanged: number;
+    additions: number;
+    deletions: number;
+  };
+}

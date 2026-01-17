@@ -30,8 +30,9 @@ graph TD
 
 ### 2. Backend (Next.js API Routes)
 - **Task/Project API**: CRUD operations for the Kanban board.
-- **Git API**: Wrapper around local git commands (`status`, `diff`, `stage`, `commit`).
-- **Upload API**: Secure handling of file attachments for task context.
+- **Git API**: Wrapper around local git commands (`status`, `diff`, `stage`, `commit`, `log`).
+  - **Remote Detection**: The Log API identifies "local" commits by comparing local history against remote tracking branches (`--remotes`).
+  - **Branch Coloring**: The frontend calculator (`src/lib/git/lane-calculator.ts`) assigns deterministic colors based on branch names, prioritizing main/master with amber.
 
 ### 3. Agent Integration (Claude SDK)
 - **Agent Manager**: Orchestrates the interaction between the user and Claude.

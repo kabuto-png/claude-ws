@@ -25,45 +25,82 @@ export interface GitCommit {
   date: string;
   parents: string[];
   refs: string[];
+  isLocal?: boolean;   // Not on any remote tracking branch
+  isMerge?: boolean;   // Has multiple parents
 }
 
-const BRANCH_COLORS = [
-  '#f59e0b', // amber
-  '#3b82f6', // blue
-  '#22c55e', // green
-  '#a855f7', // purple
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#f97316', // orange
-  '#6366f1', // indigo
-];
+const COLOR_SCHEME = {
+  main: '#f59e0b',     // amber (main/master priority)
+  master: '#f59e0b',
+  palette: [
+    '#3b82f6',  // blue
+    '#22c55e',  // green
+    '#a855f7',  // purple
+    '#ec4899',  // pink
+    '#06b6d4',  // cyan
+    '#f97316',  // orange
+    '#6366f1',  // indigo
+  ],
+  orphan: '#6b7280',   // gray (commits with no refs/parents)
+};
 
 /**
- * Hash branch name to consistent color
+ * Get branch color with main/master priority
  */
-function hashBranchColor(branchName: string): string {
+function getBranchColor(branchName: string): string {
+  // Clean branch name (remove origin/ prefix, HEAD -> prefix)
+  const cleanName = branchName.replace(/^origin\//, '').replace(/^HEAD -> /, '');
+
+  // Priority: main/master branches
+  if (cleanName === 'main' || cleanName === 'master') {
+    return COLOR_SCHEME.main;
+  }
+
+  // Hash to palette color
   let hash = 0;
-  for (let i = 0; i < branchName.length; i++) {
-    hash = ((hash << 5) - hash) + branchName.charCodeAt(i);
+  for (let i = 0; i < cleanName.length; i++) {
+    hash = ((hash << 5) - hash) + cleanName.charCodeAt(i);
   }
-  return BRANCH_COLORS[Math.abs(hash) % BRANCH_COLORS.length];
+  return COLOR_SCHEME.palette[Math.abs(hash) % COLOR_SCHEME.palette.length];
 }
 
 /**
- * Assign stable color based on branch refs or commit properties
+ * Assign color to commit based on refs, parents, or lane
  */
-function assignColor(
-  lane: number,
+function assignCommitColor(
   commit: GitCommit,
-  colorMap: Map<number, string>
-): void {
-  // Priority: branch refs > deterministic hash
-  if (commit.refs.length > 0) {
-    const branchName = commit.refs[0];
-    colorMap.set(lane, hashBranchColor(branchName));
-  } else {
-    colorMap.set(lane, BRANCH_COLORS[lane % BRANCH_COLORS.length]);
+  lane: number,
+  commitColors: Map<string, string>
+): string {
+  // Already has color? Return it
+  if (commitColors.has(commit.hash)) {
+    return commitColors.get(commit.hash)!;
   }
+
+  // Priority 1: Branch refs
+  if (commit.refs.length > 0) {
+    // Check for main/master first
+    const mainRef = commit.refs.find(ref =>
+      ref.includes('main') || ref.includes('master')
+    );
+    if (mainRef) {
+      return COLOR_SCHEME.main;
+    }
+    return getBranchColor(commit.refs[0]);
+  }
+
+  // Orphan commits (no refs, no parents) = gray
+  if (commit.refs.length === 0 && commit.parents.length === 0) {
+    return COLOR_SCHEME.orphan;
+  }
+
+  // Priority 2: Parent color inheritance
+  if (commit.parents.length > 0 && commitColors.has(commit.parents[0])) {
+    return commitColors.get(commit.parents[0])!;
+  }
+
+  // Priority 3: Lane-based fallback
+  return COLOR_SCHEME.palette[lane % COLOR_SCHEME.palette.length];
 }
 
 /**
@@ -71,27 +108,32 @@ function assignColor(
  */
 export function calculateLanes(commits: GitCommit[]): GraphData {
   const laneAssignments: LaneAssignment[] = [];
-  const activeLanes: (string | null)[] = []; // index is lane number, value is expected commit hash
-  const colorMap: Map<number, string> = new Map();
+  const activeLanes: (string | null)[] = []; // Track expected commits per lane
+  const commitColors: Map<string, string> = new Map(); // Track color per commit
 
-  // Process commits in display order (newest to oldest)
   for (let i = 0; i < commits.length; i++) {
     const commit = commits[i];
 
-    // Find lane expecting this commit, or assign new lane
+    // Find lane expecting this commit
     let lane = activeLanes.indexOf(commit.hash);
 
     if (lane === -1) {
-      // Not expected - start new lane (new branch head)
+      // Not expected - find first free lane, max 2 lanes
       lane = activeLanes.findIndex(h => h === null);
-      if (lane === -1) lane = activeLanes.length;
-      assignColor(lane, commit, colorMap);
+      if (lane === -1) {
+        lane = activeLanes.length < 2 ? activeLanes.length : 0;
+      }
     }
 
-    // Calculate parent lane connections for visual display
+    // Assign color based on branch refs, not lane
+    let color = commitColors.get(commit.hash);
+    if (!color) {
+      color = assignCommitColor(commit, lane, commitColors);
+      commitColors.set(commit.hash, color);
+    }
+
     const inLanes: number[] = [];
-    for (let p = 0; p < commit.parents.length; p++) {
-      const parentHash = commit.parents[p];
+    for (const parentHash of commit.parents) {
       const parentLane = activeLanes.indexOf(parentHash);
       if (parentLane !== -1) {
         inLanes.push(parentLane);
@@ -103,37 +145,38 @@ export function calculateLanes(commits: GitCommit[]): GraphData {
       lane,
       inLanes,
       outLanes: [lane],
-      color: colorMap.get(lane) || BRANCH_COLORS[0],
+      color,
     });
 
-    // Update active lanes for this commit's parents
+    // Update active lanes and propagate colors
     if (commit.parents.length > 0) {
-      // First parent continues in same lane
       activeLanes[lane] = commit.parents[0];
+      commitColors.set(commit.parents[0], color);
 
-      // Additional parents get new lanes (merge branches)
+      // Additional parents - assign to available lanes
       for (let p = 1; p < commit.parents.length; p++) {
-        let nextFreeLane = activeLanes.indexOf(null);
-        if (nextFreeLane === -1) nextFreeLane = activeLanes.length;
-        activeLanes[nextFreeLane] = commit.parents[p];
-        if (!colorMap.has(nextFreeLane)) {
-          colorMap.set(nextFreeLane, BRANCH_COLORS[nextFreeLane % BRANCH_COLORS.length]);
-        }
+        const parentLane = p < 2 ? p : (lane === 0 ? 1 : 0);
+        activeLanes[parentLane] = commit.parents[p];
+
+        // Assign different color for merge parent
+        const parentColor = COLOR_SCHEME.palette[(lane + p) % COLOR_SCHEME.palette.length];
+        commitColors.set(commit.parents[p], parentColor);
       }
     } else {
-      // No parents - terminate lane (initial commit)
       activeLanes[lane] = null;
     }
   }
 
-  // Calculate maxLane from assignments
-  const maxLane = laneAssignments.length > 0
-    ? Math.max(...laneAssignments.map(a => a.lane))
-    : 0;
+  const maxLane = Math.min(
+    laneAssignments.length > 0 ? Math.max(...laneAssignments.map(a => a.lane)) : 0,
+    1
+  );
 
   return {
     lanes: laneAssignments,
     maxLane,
-    colorMap,
+    colorMap: new Map([[0, COLOR_SCHEME.main], [1, COLOR_SCHEME.palette[0]]]),
   };
 }
+
+export { COLOR_SCHEME };
