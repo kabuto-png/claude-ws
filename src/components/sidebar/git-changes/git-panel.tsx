@@ -285,11 +285,6 @@ export function GitPanel() {
             <RefreshCw className={`size-4 ${loading ? 'animate-spin' : ''}`} />
           </Button>
         </div>
-        {lastUpdated && (
-          <p className="text-[10px] text-muted-foreground">
-            {lastUpdated.toLocaleTimeString()}
-          </p>
-        )}
       </div>
 
       {/* File sections */}
@@ -347,10 +342,9 @@ export function GitPanel() {
               <div className="mt-0.5">
                 {/* Commit message input inside Changes section */}
                 <div className="px-2 pb-2">
-                  <div className="flex gap-1.5 items-center">
-                    <input
-                      type="text"
-                      className="flex-1 h-8 px-2 text-sm bg-muted/50 border rounded-md focus:outline-none focus:ring-1 focus:ring-ring"
+                  <div className="flex gap-1.5 items-start">
+                    <textarea
+                      className="flex-1 min-h-[60px] px-2 py-1.5 text-sm bg-muted/50 border rounded-md focus:outline-none focus:ring-1 focus:ring-ring resize-y"
                       placeholder="Commit message"
                       value={commitMessage}
                       onChange={(e) => setCommitMessage(e.target.value)}
@@ -393,11 +387,10 @@ export function GitPanel() {
                     onClick={handleCommit}
                   >
                     {committing ? (
-                      <Loader2 className="size-4 animate-spin mr-1.5" />
+                      <Loader2 className="size-4 animate-spin" />
                     ) : (
-                      <Check className="size-4 mr-1.5" />
+                      <Check className="size-4" />
                     )}
-                    Commit
                   </Button>
                 </div>
 
