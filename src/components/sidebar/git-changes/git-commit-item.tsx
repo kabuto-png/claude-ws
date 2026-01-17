@@ -88,7 +88,7 @@ export function GitCommitItem({
       <div className="flex-1 min-w-0 py-0.5">
         <div className="flex items-center gap-1.5 flex-wrap">
           {/* Commit message */}
-          <span className="text-sm truncate flex-1 min-w-0">
+          <span className="text-xs truncate flex-1 min-w-0">
             {commit.message}
           </span>
 

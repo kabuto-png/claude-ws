@@ -57,7 +57,7 @@ export function GitFileItem({
   return (
     <div
       className={cn(
-        'group flex items-center gap-1.5 px-2 py-0.5 text-sm cursor-pointer',
+        'group flex items-center gap-1.5 px-2 py-0.5 text-xs cursor-pointer',
         'hover:bg-accent/50 transition-colors',
         isSelected && 'bg-accent text-accent-foreground'
       )}
