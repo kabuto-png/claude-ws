@@ -1,10 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { ChevronRight, ChevronDown, RefreshCw, Loader2, GitPullRequest, ArrowUpFromLine, ArrowDownToLine, RotateCcw, MoreHorizontal } from 'lucide-react';
 import { GitCommitItem } from './git-commit-item';
+import { GraphRenderer } from './graph-renderer';
 import { useActiveProject } from '@/hooks/use-active-project';
 import { cn } from '@/lib/utils';
+import { calculateLanes } from '@/lib/git/lane-calculator';
+import { generatePaths, GRAPH_CONSTANTS } from '@/lib/git/path-generator';
 
 interface GitCommit {
   hash: string;
@@ -16,18 +19,6 @@ interface GitCommit {
   refs: string[];
 }
 
-// Color palette for branches
-const BRANCH_COLORS = [
-  '#f59e0b', // amber
-  '#3b82f6', // blue
-  '#22c55e', // green
-  '#a855f7', // purple
-  '#ec4899', // pink
-  '#06b6d4', // cyan
-  '#f97316', // orange
-  '#6366f1', // indigo
-];
-
 export function GitGraph() {
   const activeProject = useActiveProject();
   const [commits, setCommits] = useState<GitCommit[]>([]);
@@ -36,6 +27,7 @@ export function GitGraph() {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isExpanded, setIsExpanded] = useState(true);
+  const [hoveredCommit, setHoveredCommit] = useState<string | null>(null);
 
   const fetchLog = useCallback(async () => {
     if (!activeProject?.path) return;
@@ -64,6 +56,20 @@ export function GitGraph() {
     fetchLog();
   }, [fetchLog]);
 
+  // Calculate graph data when commits change
+  const graphData = useMemo(() => {
+    if (commits.length === 0) return null;
+
+    const laneData = calculateLanes(commits);
+    const paths = generatePaths(laneData.lanes, commits);
+
+    return {
+      lanes: laneData.lanes,
+      paths,
+      maxLane: laneData.maxLane,
+    };
+  }, [commits]);
+
   // Git remote operations
   const gitAction = useCallback(async (action: 'fetch' | 'pull' | 'push') => {
     if (!activeProject?.path) return;
@@ -85,21 +91,6 @@ export function GitGraph() {
       setActionLoading(null);
     }
   }, [activeProject?.path, fetchLog]);
-
-  // Assign colors to branches based on commit graph
-  const getCommitColor = useCallback((commit: GitCommit, index: number): string => {
-    // Simple coloring: main/master gets blue, others get rotating colors
-    const hasMain = commit.refs.some(
-      (r) => r.includes('main') || r.includes('master')
-    );
-    if (hasMain) return BRANCH_COLORS[1]; // blue
-
-    // Merge commits get different color
-    if (commit.parents.length > 1) return BRANCH_COLORS[4]; // pink
-
-    // Use index-based color for variety
-    return BRANCH_COLORS[index % BRANCH_COLORS.length];
-  }, []);
 
   if (!activeProject) return null;
 
@@ -201,18 +192,57 @@ export function GitGraph() {
             <div className="px-2 py-4 text-xs text-muted-foreground text-center">
               No commits yet
             </div>
-          ) : (
-            commits.map((commit, index) => (
-              <GitCommitItem
-                key={commit.hash}
-                commit={commit}
-                isHead={commit.hash === head}
-                color={getCommitColor(commit, index)}
-                isMerge={commit.parents.length > 1}
-                showLine={index > 0}
-              />
-            ))
-          )}
+          ) : graphData ? (
+            <div className="relative">
+              {/* Render SVG graph overlay */}
+              <div className="absolute left-0 top-0 z-0">
+                <GraphRenderer
+                  lanes={graphData.lanes}
+                  paths={graphData.paths}
+                  maxLane={graphData.maxLane}
+                  highlightedCommit={hoveredCommit || undefined}
+                  onCommitClick={(hash) => {
+                    // TODO: Show commit details panel
+                  }}
+                />
+              </div>
+
+              {/* Render commit items */}
+              <div className="relative z-10">
+                {commits.map((commit, index) => {
+                  const lane = graphData.lanes[index];
+
+                  return (
+                    <div
+                      key={commit.hash}
+                      className="flex items-center"
+                      style={{ minHeight: '32px' }}
+                      onMouseEnter={() => setHoveredCommit(commit.hash)}
+                      onMouseLeave={() => setHoveredCommit(null)}
+                    >
+                      {/* Spacer for graph column */}
+                      <div
+                        style={{
+                          width: (graphData.maxLane + 1) * GRAPH_CONSTANTS.LANE_WIDTH + 8,
+                          minWidth: (graphData.maxLane + 1) * GRAPH_CONSTANTS.LANE_WIDTH + 8,
+                        }}
+                        className="shrink-0"
+                      />
+
+                      {/* Commit info */}
+                      <GitCommitItem
+                        commit={commit}
+                        isHead={commit.hash === head}
+                        color={lane.color}
+                        isMerge={commit.parents.length > 1}
+                        showLine={false}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
       )}
     </div>
