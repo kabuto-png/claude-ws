@@ -363,7 +363,13 @@ export function GitPanel() {
                     {/* Generate commit message button */}
                     <button
                       className="flex items-center justify-center size-8 hover:bg-accent rounded-md border bg-muted/50 transition-colors shrink-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                      title="Generate commit message with AI"
+                      title={
+                        (status?.staged.length || 0) === 0
+                          ? 'Stage files first to generate commit message'
+                          : generatingMessage
+                          ? 'Generating...'
+                          : 'Generate commit message with AI'
+                      }
                       onClick={handleGenerateMessage}
                       disabled={generatingMessage || (status?.staged.length || 0) === 0}
                     >
