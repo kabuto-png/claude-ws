@@ -63,6 +63,20 @@ export const attempts = sqliteTable(
     branch: text('branch'),
     diffAdditions: integer('diff_additions').notNull().default(0),
     diffDeletions: integer('diff_deletions').notNull().default(0),
+    // Usage tracking
+    totalTokens: integer('total_tokens').notNull().default(0),
+    inputTokens: integer('input_tokens').notNull().default(0),
+    outputTokens: integer('output_tokens').notNull().default(0),
+    cacheCreationTokens: integer('cache_creation_tokens').notNull().default(0),
+    cacheReadTokens: integer('cache_read_tokens').notNull().default(0),
+    totalCostUSD: text('total_cost_usd').notNull().default('0'), // Stored as string to preserve precision
+    numTurns: integer('num_turns').notNull().default(0),
+    durationMs: integer('duration_ms').notNull().default(0),
+    // Context usage
+    contextUsed: integer('context_used').notNull().default(0),
+    contextLimit: integer('context_limit').notNull().default(200000),
+    contextPercentage: integer('context_percentage').notNull().default(0), // Stored as integer (0-100)
+    baselineContext: integer('baseline_context').notNull().default(0),
     createdAt: integer('created_at', { mode: 'number' })
       .notNull()
       .$defaultFn(() => Date.now()),
