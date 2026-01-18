@@ -67,7 +67,7 @@ function loadWindowData(
 
       // Validate size is within reasonable bounds
       const validWidth = Math.max(MIN_WIDTH, Math.min(parsed.width, viewportWidth));
-      const validHeight = Math.max(M_HEIGHT, Math.min(parsed.height, viewportHeight));
+      const validHeight = Math.max(MIN_HEIGHT, Math.min(parsed.height, viewportHeight));
 
       // Validate position is within viewport
       const validX = Math.max(0, Math.min(parsed.x, viewportWidth - validWidth));
@@ -132,7 +132,12 @@ export function DetachableWindow({
   // Sync isOpen prop with internal state
   useEffect(() => {
     setIsOpenState(isOpen);
-  }, [isOpen]);
+    // Reload saved position/size when reopening
+    if (isOpen) {
+      const saved = loadWindowData(storageKey, initialSize);
+      setWindowState({ position: saved.position, size: saved.size });
+    }
+  }, [isOpen, storageKey, initialSize]);
 
   // Reset isOpenState when the component re-renders while in detached mode
   useEffect(() => {
