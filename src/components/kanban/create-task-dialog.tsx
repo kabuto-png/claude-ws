@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { PromptInput } from '@/components/task/prompt-input';
 import { useTaskStore } from '@/stores/task-store';
 import { useProjectStore } from '@/stores/project-store';
+import { useAttachmentStore } from '@/stores/attachment-store';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 import { Task } from '@/types';
@@ -20,8 +21,11 @@ import { Task } from '@/types';
 interface CreateTaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onTaskCreated?: (task: Task, startNow: boolean, processedPrompt?: string) => void;
+  onTaskCreated?: (task: Task, startNow: boolean, processedPrompt?: string, fileIds?: string[]) => void;
 }
+
+// Temporary task ID prefix for create dialog file uploads
+const TEMP_TASK_PREFIX = '__create_dialog_temp__';
 
 export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTaskDialogProps) {
   const { createTask } = useTaskStore();
@@ -32,6 +36,7 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
     isAllProjectsMode,
     getSelectedProjects
   } = useProjectStore();
+  const { getUploadedFileIds, clearFiles, getPendingFiles, moveFiles, hasUploadingFiles } = useAttachmentStore();
 
   const [title, setTitle] = useState('');
   const [chatPrompt, setChatPrompt] = useState('');
@@ -39,11 +44,15 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Create a stable temporary task ID for file uploads in this dialog session
+  // Generate new ID each time dialog opens
+  const [tempTaskId, setTempTaskId] = useState<string>('');
+
   // Get available projects for the dropdown
   const availableProjects = getSelectedProjects();
   const isMultiProject = isAllProjectsMode() || selectedProjectIds.length !== 1;
 
-  // Set default project when dialog opens
+  // Set default project and generate new temp task ID when dialog opens
   useEffect(() => {
     if (open) {
       // Priority: activeProjectId > first selectedProjectId > first project
@@ -51,6 +60,9 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
         || (selectedProjectIds.length > 0 ? selectedProjectIds[0] : null)
         || (projects.length > 0 ? projects[0].id : null);
       setSelectedProjectId(defaultProject || '');
+
+      // Generate new temp task ID for this dialog session
+      setTempTaskId(`${TEMP_TASK_PREFIX}${Date.now()}`);
     }
   }, [open, activeProjectId, selectedProjectIds, projects]);
 
@@ -62,6 +74,12 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
 
     if (!selectedProjectId) {
       setError('Please select a project');
+      return;
+    }
+
+    // Check if files are still uploading
+    if (tempTaskId && hasUploadingFiles(tempTaskId)) {
+      setError('Please wait for files to finish uploading');
       return;
     }
 
@@ -101,16 +119,26 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
         }
       }
 
+      // Get uploaded file IDs from temp task before creating the real task
+      const fileIds = tempTaskId ? getUploadedFileIds(tempTaskId) : [];
+
       // Use title if provided, otherwise use message as title
       const taskTitle = title.trim() || chatPrompt.trim();
       const task = await createTask(selectedProjectId, taskTitle, descriptionForTask);
 
-      // Notify parent that task was created
-      onTaskCreated?.(task, startNow, processedPrompt);
+      // Move files from temp task to the real task
+      if (tempTaskId && fileIds.length > 0) {
+        moveFiles(tempTaskId, task.id);
+      }
 
-      // Reset form
+      // Notify parent that task was created (with fileIds)
+      onTaskCreated?.(task, startNow, processedPrompt, fileIds.length > 0 ? fileIds : undefined);
+
+      // Reset form and clear temp task ID before closing dialog
+      // This ensures PromptInput gets a new key and clears its state
       setTitle('');
       setChatPrompt('');
+      setTempTaskId('');
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create task');
@@ -126,10 +154,15 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
   const handleOpenChange = (newOpen: boolean) => {
     if (!isSubmitting) {
       if (!newOpen) {
+        // Clear temp files when dialog is closed
+        if (tempTaskId) {
+          clearFiles(tempTaskId);
+        }
         setTitle('');
         setChatPrompt('');
         setSelectedProjectId('');
         setError(null);
+        setTempTaskId('');
       }
       onOpenChange(newOpen);
     }
@@ -186,13 +219,15 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
               Message <span className="text-red-500">*</span>
             </label>
             <PromptInput
-              key={open ? 'create-task-input' : 'closed'}
+              key={open ? `create-task-input-${tempTaskId}` : 'closed'}
               onSubmit={handlePromptSubmit}
               onChange={setChatPrompt}
               placeholder="Describe what you want Claude to do... (type / for commands)"
               disabled={isSubmitting}
               hideSendButton
               disableSubmitShortcut
+              hideStats
+              taskId={tempTaskId}
             />
           </div>
 

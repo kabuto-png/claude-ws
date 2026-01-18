@@ -79,7 +79,7 @@ export function Column({ status, title, tasks, attemptCounts = new Map(), onCrea
       <div
         ref={setNodeRef}
         className={cn(
-          'flex-1 rounded-lg bg-muted/50 p-2 transition-colors border border-border/50',
+          'flex-1 rounded-lg bg-muted/50 p-2 transition-colors border border-border/50 overflow-y-auto min-h-0 kanban-scrollbar',
           isOver && 'bg-accent/50 border-accent'
         )}
       >
