@@ -84,35 +84,35 @@ export function calculateContextBudget(config = DEFAULT_BUDGET_CONFIG): ContextB
 /**
  * Calculate auto-compact threshold
  *
- * Updated formula (aligned with Claude Code CLI):
+ * Aligned with Claude Code CLI recommendations:
  * - For window >= 1M: threshold = size × 0.33 (33%)
- * - For window < 1M:  threshold = size × 0.93 (93%)
+ * - For window < 1M:  threshold = size × 0.75 (75%)
  *
- * Example: 200K window → 186K threshold (better utilization)
- * Previous: 155K (77.5%) - too aggressive, left only 22.5% for output
+ * Example: 200K window → 150K threshold
+ * This preserves ~25% for output and working memory
  */
 export function calculateCompactThreshold(contextWindowSize: number): number {
   if (contextWindowSize >= 1_000_000) {
     return Math.floor(contextWindowSize * 0.33);
   }
-  return Math.floor(contextWindowSize * 0.93);
+  return Math.floor(contextWindowSize * 0.75);
 }
 
 /**
  * Determine health status based on utilization
  *
- * Thresholds from ClaudeKit:
- * - < 50%: HEALTHY (score 1.0)
- * - 50-70%: WARNING (score 0.8)
- * - 70-85%: CRITICAL (score 0.5)
- * - >= 85%: EMERGENCY (score 0.2)
+ * Aligned with Claude Code CLI thresholds:
+ * - < 60%: HEALTHY (score 1.0)
+ * - 60-75%: WARNING (score 0.8)
+ * - 75-90%: CRITICAL (score 0.5)
+ * - >= 90%: EMERGENCY (score 0.2)
  */
 export function getHealthStatus(utilization: number): { status: ContextHealthStatus; score: number } {
-  if (utilization < 0.50) {
+  if (utilization < 0.60) {
     return { status: 'HEALTHY', score: 1.0 };
-  } else if (utilization < 0.70) {
+  } else if (utilization < 0.75) {
     return { status: 'WARNING', score: 0.8 };
-  } else if (utilization < 0.85) {
+  } else if (utilization < 0.90) {
     return { status: 'CRITICAL', score: 0.5 };
   } else {
     return { status: 'EMERGENCY', score: 0.2 };
