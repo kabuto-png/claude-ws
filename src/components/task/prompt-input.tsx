@@ -18,6 +18,7 @@ import { X } from 'lucide-react';
 
 export interface PromptInputRef {
   submit: () => void;
+  focus: () => void;
 }
 
 interface PromptInputProps {
@@ -365,11 +366,14 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
     fileInputRef.current?.click();
   };
 
-  // Expose submit function to parent via ref
+  // Expose submit and focus functions to parent via ref
   useImperativeHandle(ref, () => ({
     submit: () => {
       if (!prompt.trim() || disabled) return;
       handleSubmit({ preventDefault: () => { } } as FormEvent);
+    },
+    focus: () => {
+      textareaRef.current?.focus();
     },
   }));
 

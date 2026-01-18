@@ -184,6 +184,12 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
     setShellPanelExpanded(false);
     lastCompletedTaskRef.current = null;
     hasAutoStartedRef.current = false;
+
+    // Auto-focus on chat input when task is selected
+    // Small delay to ensure component is mounted
+    setTimeout(() => {
+      promptInputRef.current?.focus();
+    }, 100);
   }, [selectedTask?.id]);
 
   // Get current project ID and check for shells

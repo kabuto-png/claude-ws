@@ -193,6 +193,23 @@ export function ConversationView({
     scrollToBottomIfNear();
   }, [currentMessages, historicalTurns, isRunning]);
 
+  // Continuous auto-scroll during streaming
+  // Uses requestAnimationFrame to smoothly scroll as content appears
+  useEffect(() => {
+    if (!isRunning) return;
+
+    let rafId: number;
+
+    const autoScroll = () => {
+      scrollToBottomIfNear();
+      rafId = requestAnimationFrame(autoScroll);
+    };
+
+    rafId = requestAnimationFrame(autoScroll);
+
+    return () => cancelAnimationFrame(rafId);
+  }, [isRunning]);
+
   const renderContentBlock = (
     block: ClaudeContentBlock,
     index: number,
