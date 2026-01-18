@@ -1,49 +1,81 @@
 'use client';
 
-import {
-  FileText,
-  FileCode,
-  FileJson,
-  FileImage,
-  File,
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { FileExtensionIcon } from '@/components/ui/file-extension-icon';
+
+// MIME type to extension mapping
+const MIME_TO_EXT: Record<string, string> = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/jpg': 'jpg',
+  'image/gif': 'gif',
+  'image/webp': 'webp',
+  'image/svg+xml': 'svg',
+  'image/x-icon': 'ico',
+  'image/bmp': 'bmp',
+  'application/json': 'json',
+  'application/pdf': 'pdf',
+  'application/xml': 'xml',
+  'application/zip': 'zip',
+  'application/gzip': 'gz',
+  'application/x-tar': 'tar',
+  'application/x-rar-compressed': 'rar',
+  'application/x-7z-compressed': '7z',
+  'text/plain': 'txt',
+  'text/html': 'html',
+  'text/css': 'css',
+  'text/javascript': 'js',
+  'text/typescript': 'ts',
+  'text/markdown': 'md',
+  'text/xml': 'xml',
+  'text/csv': 'csv',
+  'application/javascript': 'js',
+  'application/typescript': 'ts',
+  'application/x-typescript': 'ts',
+};
 
 interface FileIconProps {
   mimeType: string;
   className?: string;
+  /** File name for better extension detection */
+  fileName?: string;
 }
 
-// Map MIME types to Lucide icons
-export function FileIcon({ mimeType, className }: FileIconProps) {
-  const iconClass = cn('size-6', className);
+function getExtensionFromMime(mimeType: string): string {
+  // Direct mapping
+  if (mimeType in MIME_TO_EXT) {
+    return MIME_TO_EXT[mimeType];
+  }
 
+  // Fallback patterns
   if (mimeType.startsWith('image/')) {
-    return <FileImage className={iconClass} />;
+    return mimeType.split('/')[1] || 'image';
+  }
+  if (mimeType.startsWith('video/')) {
+    return mimeType.split('/')[1] || 'video';
+  }
+  if (mimeType.startsWith('audio/')) {
+    return mimeType.split('/')[1] || 'audio';
+  }
+  if (mimeType.includes('typescript')) {
+    return 'ts';
+  }
+  if (mimeType.includes('javascript')) {
+    return 'js';
   }
 
-  if (mimeType === 'application/json') {
-    return <FileJson className={iconClass} />;
-  }
+  return 'txt';
+}
 
-  if (
-    mimeType.includes('typescript') ||
-    mimeType.includes('javascript') ||
-    mimeType === 'text/css' ||
-    mimeType === 'text/html' ||
-    mimeType === 'text/xml' ||
-    mimeType === 'application/xml'
-  ) {
-    return <FileCode className={iconClass} />;
-  }
+export function FileIcon({ mimeType, className, fileName }: FileIconProps) {
+  // Use fileName if provided, otherwise derive from mimeType
+  const name = fileName || `file.${getExtensionFromMime(mimeType)}`;
 
-  if (
-    mimeType === 'text/plain' ||
-    mimeType === 'text/markdown' ||
-    mimeType === 'application/pdf'
-  ) {
-    return <FileText className={iconClass} />;
-  }
-
-  return <File className={iconClass} />;
+  return (
+    <FileExtensionIcon
+      name={name}
+      type="file"
+      size={24}
+      className={className}
+    />
+  );
 }

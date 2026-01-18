@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
         hostname: 'cdn.jsdelivr.net',
         pathname: '/npm/vscode-icons-js@*/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'raw.githubusercontent.com',
+        pathname: '/vscode-icons/vscode-icons/**',
+      },
     ],
   },
 };
