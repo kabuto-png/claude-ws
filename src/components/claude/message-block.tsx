@@ -3,12 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import rehypeHighlight from 'rehype-highlight';
 import { ChevronDown, ChevronRight, Brain } from 'lucide-react';
 import { RunningDots } from '@/components/ui/running-dots';
 import { cn } from '@/lib/utils';
 import { CodeBlock } from './code-block';
-import 'highlight.js/styles/github-dark.css';
 
 interface MessageBlockProps {
   content: string;
@@ -110,7 +108,6 @@ function MarkdownContent({ content }: { content: string }) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeHighlight]}
       components={{
         // Headings - consistent sizing, not too big
         h1: ({ children }) => (

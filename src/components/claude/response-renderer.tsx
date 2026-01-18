@@ -14,10 +14,49 @@ interface ResponseRendererProps {
 
 export function ResponseRenderer({ messages, className }: ResponseRendererProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const userScrollingRef = useRef(false);
+  const userScrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Auto-scroll to bottom on new messages
+  // Check if user is near bottom
+  const isNearBottom = () => {
+    const viewport = scrollAreaRef.current?.querySelector('[data-slot="scroll-area-viewport"]');
+    if (!viewport) return true;
+    const threshold = 150;
+    return viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight < threshold;
+  };
+
+  // Detect user scroll to pause auto-scroll
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const viewport = scrollAreaRef.current?.querySelector('[data-slot="scroll-area-viewport"]');
+    if (!viewport) return;
+
+    const handleScroll = () => {
+      userScrollingRef.current = true;
+      if (userScrollTimeoutRef.current) {
+        clearTimeout(userScrollTimeoutRef.current);
+      }
+      userScrollTimeoutRef.current = setTimeout(() => {
+        if (isNearBottom()) {
+          userScrollingRef.current = false;
+        }
+      }, 150);
+    };
+
+    viewport.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      viewport.removeEventListener('scroll', handleScroll);
+      if (userScrollTimeoutRef.current) {
+        clearTimeout(userScrollTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  // Auto-scroll to bottom on new messages (only if not manually scrolling)
+  useEffect(() => {
+    if (!userScrollingRef.current && isNearBottom()) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   const renderContentBlock = (block: ClaudeContentBlock, index: number) => {
@@ -103,7 +142,7 @@ export function ResponseRenderer({ messages, className }: ResponseRendererProps)
   }
 
   return (
-    <ScrollArea className={cn('h-full', className)}>
+    <ScrollArea ref={scrollAreaRef} className={cn('h-full', className)}>
       <div className="space-y-4 p-4">
         {messages.map((message, index) => renderMessage(message, index))}
         <div ref={bottomRef} />
