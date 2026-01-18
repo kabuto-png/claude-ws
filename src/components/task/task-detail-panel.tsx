@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { X, Wifi, WifiOff, RotateCcw, ChevronDown } from 'lucide-react';
+import { X, Wifi, WifiOff, RotateCcw, ChevronDown, Minimize2, Maximize2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,7 @@ import { useAttemptStream } from '@/hooks/use-attempt-stream';
 import { useInteractiveCommandStore } from '@/stores/interactive-command-store';
 import { useAttachmentStore } from '@/stores/attachment-store';
 import { cn } from '@/lib/utils';
+import { DetachableWindow } from '@/components/ui/detachable-window';
 import type { TaskStatus, PendingFile } from '@/types';
 
 const { minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH } = PANEL_CONFIGS.taskDetail;
@@ -50,6 +51,24 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [shellPanelExpanded, setShellPanelExpanded] = useState(false);
+  const [isDetached, setIsDetached] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return localStorage.getItem('chat-window-detached') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  // Persist detached state
+  useEffect(() => {
+    try {
+      localStorage.setItem('chat-window-detached', String(isDetached));
+    } catch {
+      // Ignore storage errors
+    }
+  }, [isDetached]);
+
   const panelRef = useRef<HTMLDivElement>(null);
   const promptInputRef = useRef<PromptInputRef>(null);
   const { shells } = useShellStore();
@@ -203,6 +222,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
   const statusConfig = STATUS_CONFIG[selectedTask.status];
 
   const handleClose = () => {
+    setIsDetached(false);
     setSelectedTask(null);
   };
 
@@ -230,6 +250,169 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
     setConversationKey((k) => k + 1);
   };
 
+  // Render just the conversation view
+  const renderConversation = () => (
+    <div className="flex-1 overflow-hidden min-w-0">
+      <ConversationView
+        key={conversationKey}
+        taskId={selectedTask.id}
+        currentMessages={messages}
+        currentAttemptId={currentAttemptId}
+        currentPrompt={currentPrompt || undefined}
+        currentFiles={isRunning ? currentAttemptFiles : undefined}
+        isRunning={isRunning}
+      />
+    </div>
+  );
+
+  // Render the input area footer
+  const renderFooter = () => (
+    <>
+      <Separator />
+      {/* Prompt Input with Interactive Command Overlay or Question Prompt */}
+      <div className="relative">
+        {activeQuestion ? (
+          <div className="border-t bg-muted/30">
+            <QuestionPrompt
+              questions={activeQuestion.questions}
+              onAnswer={(answers) => {
+                // Move task to In Progress when answering a question
+                if (selectedTask?.status !== 'in_progress') {
+                  moveTaskToInProgress(selectedTask.id);
+                }
+                // Pass questions and answers in SDK format
+                // answers is Record<string, string> keyed by question text
+                answerQuestion(activeQuestion.questions, answers as Record<string, string>);
+              }}
+              onCancel={cancelQuestion}
+            />
+          </div>
+        ) : shellPanelExpanded && currentProjectId ? (
+          /* Shell Panel - replaces input when expanded */
+          <ShellExpandedPanel
+            projectId={currentProjectId}
+            onClose={() => setShellPanelExpanded(false)}
+          />
+        ) : (
+          <div className="p-3 sm:p-4">
+            <PromptInput
+              key={`${selectedTask.id}-${hasSentFirstMessage ? 'sent' : 'initial'}`}
+              ref={promptInputRef}
+              onSubmit={handlePromptSubmit}
+              onCancel={cancelAttempt}
+              disabled={isRunning}
+              taskId={selectedTask.id}
+              initialValue={!selectedTask.chatInit && selectedTask.description ? selectedTask.description : undefined}
+            />
+            <InteractiveCommandOverlay />
+          </div>
+        )}
+      </div>
+
+      {/* Shell Toggle Bar - always visible when shells exist */}
+      {currentProjectId && (
+        <ShellToggleBar
+          projectId={currentProjectId}
+          isExpanded={shellPanelExpanded}
+          onToggle={() => setShellPanelExpanded(!shellPanelExpanded)}
+        />
+      )}
+    </>
+  );
+
+  // Render the main content (conversation + input) - used for inline panel
+  const renderContent = () => (
+    <>
+      {renderConversation()}
+      {renderFooter()}
+    </>
+  );
+
+  // When detached, render only the floating window
+  if (isDetached) {
+    return (
+      <DetachableWindow
+        isOpen={isDetached}
+        onClose={() => {
+          setIsDetached(false);
+          setSelectedTask(null);
+        }}
+        initialSize={{ width: 500, height: 600 }}
+        footer={renderFooter()}
+        storageKey="chat"
+        titleCenter={selectedTask.title}
+        title={
+          <div className="flex items-center gap-2">
+            <div className="relative">
+              <button
+                onClick={() => setShowStatusDropdown(!showStatusDropdown)}
+                className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+              >
+                <Badge variant={statusConfig.variant} className="cursor-pointer">
+                  {statusConfig.label}
+                </Badge>
+                <ChevronDown className="size-3 text-muted-foreground" />
+              </button>
+              {showStatusDropdown && (
+                <div className="absolute top-full left-0 mt-1 z-50 bg-popover border rounded-md shadow-md min-w-[120px]">
+                  {STATUSES.map((status) => (
+                    <button
+                      key={status}
+                      onClick={async () => {
+                        setShowStatusDropdown(false);
+                        if (status !== selectedTask.status) {
+                          await updateTaskStatus(selectedTask.id, status);
+                        }
+                      }}
+                      className={cn(
+                        'w-full text-left px-3 py-1.5 text-sm hover:bg-accent transition-colors',
+                        status === selectedTask.status && 'bg-accent'
+                      )}
+                    >
+                      {STATUS_CONFIG[status].label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {isConnected ? (
+              <span className="flex items-center gap-1 text-xs text-green-600">
+                <Wifi className="size-3" />
+              </span>
+            ) : (
+              <span className="flex items-center gap-1 text-xs text-red-500">
+                <WifiOff className="size-3" />
+              </span>
+            )}
+          </div>
+        }
+        headerEnd={
+          <>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={handleRefreshConversation}
+              title="Refresh conversation"
+            >
+              <RotateCcw className="size-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setIsDetached(false)}
+              title="Maximize to panel"
+            >
+              <Maximize2 className="size-4" />
+            </Button>
+          </>
+        }
+      >
+        {renderConversation()}
+      </DetachableWindow>
+    );
+  }
+
+  // Normal inline panel
   return (
     <div
       ref={panelRef}
@@ -306,6 +489,16 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
             >
               <RotateCcw className="size-4" />
             </Button>
+            {!isMobile && (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={() => setIsDetached(!isDetached)}
+                title={isDetached ? "Attach window" : "Detach window"}
+              >
+                <Minimize2 className="size-4" />
+              </Button>
+            )}
             <Button variant="ghost" size="icon-sm" onClick={handleClose}>
               <X className="size-4" />
             </Button>
@@ -314,69 +507,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
         <h2 className="text-base sm:text-lg font-semibold line-clamp-2">{selectedTask.title}</h2>
       </div>
 
-      {/* Conversation View */}
-      <div className="flex-1 overflow-hidden min-w-0">
-        <ConversationView
-          key={conversationKey}
-          taskId={selectedTask.id}
-          currentMessages={messages}
-          currentAttemptId={currentAttemptId}
-          currentPrompt={currentPrompt || undefined}
-          currentFiles={isRunning ? currentAttemptFiles : undefined}
-          isRunning={isRunning}
-        />
-      </div>
-
-      <Separator />
-
-      {/* Prompt Input with Interactive Command Overlay or Question Prompt */}
-      <div className="relative">
-        {activeQuestion ? (
-          <div className="border-t bg-muted/30">
-            <QuestionPrompt
-              questions={activeQuestion.questions}
-              onAnswer={(answers) => {
-                // Move task to In Progress when answering a question
-                if (selectedTask?.status !== 'in_progress') {
-                  moveTaskToInProgress(selectedTask.id);
-                }
-                // Pass questions and answers in SDK format
-                // answers is Record<string, string> keyed by question text
-                answerQuestion(activeQuestion.questions, answers as Record<string, string>);
-              }}
-              onCancel={cancelQuestion}
-            />
-          </div>
-        ) : shellPanelExpanded && currentProjectId ? (
-          /* Shell Panel - replaces input when expanded */
-          <ShellExpandedPanel
-            projectId={currentProjectId}
-            onClose={() => setShellPanelExpanded(false)}
-          />
-        ) : (
-          <div className="p-3 sm:p-4">
-            <PromptInput
-              key={`${selectedTask.id}-${hasSentFirstMessage ? 'sent' : 'initial'}`}
-              ref={promptInputRef}
-              onSubmit={handlePromptSubmit}
-              onCancel={cancelAttempt}
-              disabled={isRunning}
-              taskId={selectedTask.id}
-              initialValue={!selectedTask.chatInit && selectedTask.description ? selectedTask.description : undefined}
-            />
-            <InteractiveCommandOverlay />
-          </div>
-        )}
-      </div>
-
-      {/* Shell Toggle Bar - always visible when shells exist */}
-      {currentProjectId && (
-        <ShellToggleBar
-          projectId={currentProjectId}
-          isExpanded={shellPanelExpanded}
-          onToggle={() => setShellPanelExpanded(!shellPanelExpanded)}
-        />
-      )}
+      {renderContent()}
     </div>
   );
 }
