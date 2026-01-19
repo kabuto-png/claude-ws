@@ -18,11 +18,15 @@ rm -rf .next
 rm -rf node_modules/.cache
 rm -f *.tgz
 
-# Step 2: Run linting
-echo -e "\n${YELLOW}Step 2: Running linting checks...${NC}"
+# Step 2: Check dependencies
+echo -e "\n${YELLOW}Step 2: Checking dependencies...${NC}"
+./scripts/check-dependencies.sh
+
+# Step 3: Run linting
+echo -e "\n${YELLOW}Step 3: Running linting checks...${NC}"
 pnpm lint || echo -e "${YELLOW}⚠️  Linting warnings found (non-blocking)${NC}"
 
-# Step 3: Build production bundle
+# Step 4: Build production bundle
 echo -e "\n${YELLOW}Step 3: Building production bundle...${NC}"
 NODE_ENV=production pnpm build
 
@@ -35,7 +39,7 @@ TARBALL=$(ls -t *.tgz | head -1)
 echo -e "${GREEN}✓ Created: $TARBALL${NC}"
 
 # Step 5: Test installation in temp directory
-echo -e "\n${YELLOW}Step 5: Testing installation in temporary directory...${NC}"
+echo -e "\n${YELLOW}Step 6: Testing installation in temporary directory...${NC}"
 TEST_DIR=$(mktemp -d)
 echo "Test directory: $TEST_DIR"
 
@@ -44,7 +48,7 @@ echo -e "${YELLOW}Installing from tarball...${NC}"
 npm install -g "$OLDPWD/$TARBALL"
 
 # Step 6: Verify installation
-echo -e "\n${YELLOW}Step 6: Verifying installation...${NC}"
+echo -e "\n${YELLOW}Step 7: Verifying installation...${NC}"
 if command -v claude-ws &> /dev/null; then
     VERSION=$(claude-ws --version)
     echo -e "${GREEN}✓ claude-ws is installed: $VERSION${NC}"
@@ -54,7 +58,7 @@ else
 fi
 
 # Step 7: Test basic functionality
-echo -e "\n${YELLOW}Step 7: Testing basic functionality...${NC}"
+echo -e "\n${YELLOW}Step 8: Testing basic functionality...${NC}"
 if claude-ws --help &> /dev/null; then
     echo -e "${GREEN}✓ Help command works${NC}"
 else
@@ -63,7 +67,7 @@ else
 fi
 
 # Step 8: Cleanup
-echo -e "\n${YELLOW}Step 8: Cleaning up...${NC}"
+echo -e "\n${YELLOW}Step 9: Cleaning up...${NC}"
 npm uninstall -g claude-ws
 cd "$OLDPWD"
 rm -rf "$TEST_DIR"

@@ -228,11 +228,13 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
               key={open ? `create-task-input-${tempTaskId}` : 'closed'}
               onSubmit={() => handleSubmit(false)}
               onChange={setChatPrompt}
-              placeholder="Describe what you want Claude to do... (type / for commands)"
+              placeholder="Type / for commands..."
               disabled={isSubmitting}
               hideSendButton
               hideStats
               taskId={tempTaskId}
+              minRows={2}
+              maxRows={4}
             />
           </div>
 

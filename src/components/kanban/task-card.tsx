@@ -116,7 +116,7 @@ export function TaskCard({ task, attemptCount = 0 }: TaskCardProps) {
           </button>
         )}
 
-        <div className="pl-3.5">
+        <div className={cn('pl-3.5', showDeleteButton && 'pr-6')}>
           {/* Header: Project badge - smaller */}
           {showProjectBadge && projectName && (
             <div style={{ marginBottom: '5px', lineHeight: '10px' }}>

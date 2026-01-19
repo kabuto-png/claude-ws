@@ -33,6 +33,8 @@ interface PromptInputProps {
   hideStats?: boolean;
   onChange?: (prompt: string) => void;
   initialValue?: string;
+  minRows?: number;
+  maxRows?: number;
 }
 
 export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
@@ -47,6 +49,8 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
   hideStats = false,
   onChange,
   initialValue,
+  minRows = 1,
+  maxRows = 5,
 }, ref) => {
   const [prompt, setPrompt] = useState(initialValue || '');
   const [showCommands, setShowCommands] = useState(false);
@@ -461,11 +465,15 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
                 }}
                 placeholder={placeholder}
                 disabled={disabled}
-                rows={1}
-                className="min-h-[40px] max-h-[120px] resize-none w-full min-w-0 break-words overflow-y-auto overflow-x-hidden border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
+                rows={minRows}
+                className="resize-none w-full min-w-0 break-words overflow-y-auto overflow-x-hidden border-0 rounded-none focus-visible:ring-0 focus-visible:ring-offset-0 text-sm"
                 style={{
                   fontSize: '14px',
-                  fieldSizing: 'content',
+                  // Only use fieldSizing when minRows is 1 (auto-sizing from 1 row)
+                  // Otherwise respect the minRows setting
+                  ...(minRows === 1 ? { fieldSizing: 'content' } : {}),
+                  minHeight: `${minRows * 24 + 16}px`,
+                  maxHeight: `${maxRows * 24 + 16}px`,
                 } as React.CSSProperties}
               />
             </div>
