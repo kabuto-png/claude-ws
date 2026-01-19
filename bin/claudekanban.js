@@ -88,8 +88,11 @@ async function startServer() {
     }
   }
 
-  // Check if .next directory exists, if not, build it first
-  if (!fs.existsSync(nextBuildDir)) {
+  // Check if .next directory has valid build (check BUILD_ID file)
+  const buildIdPath = path.join(nextBuildDir, 'BUILD_ID');
+  const hasValidBuild = fs.existsSync(buildIdPath);
+
+  if (!hasValidBuild) {
     console.log('[Claude Workspace] Building production bundle...');
     console.log('[Claude Workspace] This may take a minute...');
     console.log('');
