@@ -1,71 +1,92 @@
 # Claude Workspace
 
-**A beautifully crafted workspace interface for Claude Code.**
+**Visual workspace for Claude Code with Kanban board, code editor, and Git integration.**
 
-Powerful workspace for Claude Code. Work from anywhere with consistent performance. Intuitive workflow, flexible plugins.
+Local-first SQLite database. Real-time streaming. Plugin system for custom agents and skills.
 
 ---
 
 ## Why Claude Workspace?
 
-### 🌍 Work Everywhere
-Coffee shop. Airport lounge. Hotel WiFi. Beach with spotty signal. Claude Workspace runs locally with SQLite—no cloud dependency, no latency spikes. Your workflow travels with you.
-
-### ⚡ Consistent Performance
-Same snappy experience whether you're on fiber at home or tethering from your phone. Lightweight footprint. Instant startup. Responsive UI while Claude streams. Performance you can rely on, anywhere.
-
-### 🎯 Unique Workflow
-Each task is a conversation. Each conversation has checkpoints. Rewind to any point, branch off, continue later. Your AI workflow adapts to how you think.
-
-### ✨ Intuitive Management
-Drag-and-drop across columns. Watch responses stream live. Navigate conversation history. File browser with git status. Everything where you expect it.
-
-### 🔌 Flexible Plugins
-Agent Factory manages Claude skills, commands, and agents per project. Install what you need. Your toolkit, your rules.
-
-### 🔋 Powered by Claude Code
-Native CLI integration. Real-time streaming. File attachments. Full persistence. All the power, none of the friction.
+| Feature | Benefit |
+|---------|---------|
+| 🌍 **Work Everywhere** | SQLite-based local storage—no cloud dependency, works offline anywhere |
+| ⚡ **Consistent Performance** | Lightweight footprint, instant startup, responsive UI on any connection |
+| 🎯 **Unique Workflow** | Conversation checkpoints—rewind, branch, and continue at any point |
+| ✨ **Intuitive Management** | Drag-and-drop Kanban, live streaming, file browser with Git status |
+| 🔌 **Flexible Plugins** | Agent Factory—install only the skills and agents your project needs |
+| 🔋 **Claude Code Native** | Full CLI integration with real-time streaming and file attachments |
 
 ---
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| **Task Board** | Drag-and-drop tasks: To Do → In Progress → In Review → Done |
-| **Real-time Streaming** | Watch Claude's responses stream live via Socket.io |
-| **Checkpoints** | Save conversation states, rewind to any point |
-| **Conversation History** | Full attempt logs with ability to continue or branch |
-| **File Browser** | Integrated explorer with search, preview, git status |
-| **Git Integration** | View diffs, commits, and perform git operations |
-| **File Attachments** | Attach files to provide context for prompts |
-| **Multi-Project** | Manage multiple workspaces with separate boards |
-| **Agent Factory** | Discover and manage Claude skills, commands, agents |
-| **Themes** | Light, Dark, VS Code Light/Dark, Dracula |
+**Task Management**
+- Kanban board: To Do → In Progress → In Review → Done → Cancelled
+- Drag-and-drop task cards with auto-save
+- Full conversation history per task
+
+**AI Interaction**
+- Real-time streaming of Claude responses via Socket.io
+- Checkpoints: Save and rewind to any conversation state
+- File attachments for context
+- Custom commands: `/cook`, `/plan`, `/fix`, `/brainstorm`
+- Detachable chat window
+
+**Code Editor**
+- Tabbed CodeMirror editor with syntax highlighting
+- AI-powered inline code suggestions
+- Go-to-definition navigation
+- Multi-file editing
+
+**File System**
+- Interactive file tree browser
+- Unified search (files + content)
+- File preview
+
+**Git Integration**
+- Full Git workflow: status, stage, commit, diff
+- Visual Git graph
+- Checkpoint Git snapshots for time-travel debugging
+
+**Agent Factory**
+- Plugin system for Claude skills, commands, agents
+- Dependency management
+- Per-project plugin installation
+
+**Developer Tools**
+- Background shell process manager
+- Terminal output streaming
+- Multi-project workspace support
+- Themes: Light, Dark, VS Code variants, Dracula
 
 ---
 
 ## Quick Start
 
-### Option 1: Run with npx (Recommended)
+### Option 1: Run with npx
 
 **Prerequisites:** Node.js 20+, pnpm 9+, [Claude Code CLI](https://docs.anthropic.com/en/docs/claude-code)
 
 ```bash
-npx claudews
+npx -y claude-ws
 ```
+
+The `-y` flag skips the "Ok to proceed?" prompt.
 
 The first run will:
 - Auto-create SQLite database in `~/.claude-ws/`
-- Run migrations automatically
+- Install dependencies and build automatically
 - Start the server on http://localhost:8556
 
-### Option 2: Install globally
+### Option 2: Install globally (Recommended)
 
 ```bash
-npm install -g claudews
-claudews
+npm install -g claude-ws
+claude-ws
 ```
+
+Global installation avoids npx prompts and rebuilding on every run.
 
 ### Option 3: Development from source
 
@@ -78,6 +99,25 @@ pnpm dev
 ```
 
 Open [http://localhost:8556](http://localhost:8556)
+
+---
+
+## Updating
+
+### Check current version
+```bash
+claude-ws --version
+```
+
+### Update to latest version
+```bash
+npm update -g claude-ws
+```
+
+### Force reinstall
+```bash
+npm install -g claude-ws@latest
+```
 
 ---
 
