@@ -10,11 +10,19 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { PromptInput } from '@/components/task/prompt-input';
 import { useTaskStore } from '@/stores/task-store';
 import { useProjectStore } from '@/stores/project-store';
 import { useAttachmentStore } from '@/stores/attachment-store';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { Label } from '@/components/ui/label';
 
 import { Task } from '@/types';
 
@@ -147,10 +155,6 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
     }
   };
 
-  const handlePromptSubmit = (prompt: string, displayPrompt?: string) => {
-    setChatPrompt(displayPrompt || prompt);
-  };
-
   const handleOpenChange = (newOpen: boolean) => {
     if (!isSubmitting) {
       if (!newOpen) {
@@ -169,12 +173,10 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'Enter') {
+    // Cmd/Ctrl + Enter = Start Now (run task immediately)
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
       e.preventDefault();
       handleSubmit(true);
-    } else if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-      e.preventDefault();
-      handleSubmit(false);
     }
   };
 
@@ -187,54 +189,57 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
             Add a new task to your Kanban board. Fill in the details below.
             <br />
             <span className="text-xs text-muted-foreground">
-              Press ⌘/Ctrl + Enter to create task or ⌘/Ctrl + Shift + Enter to start now
+              Press Enter to create task, Shift+Enter for newline
             </span>
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 mt-4 w-full max-w-full">
+        <div className="space-y-4 mt-4 w-full max-w-full overflow-hidden">
           {/* Project selector - show when multi-project mode */}
           {isMultiProject && (
             <div className="space-y-2">
-              <label htmlFor="project" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Project <span className="text-red-500">*</span>
-              </label>
-              <select
-                id="project"
-                className="w-full border rounded-md p-2 text-sm bg-background"
+              <Label htmlFor="project">
+                Project <span className="text-destructive">*</span>
+              </Label>
+              <Select
                 value={selectedProjectId}
-                onChange={(e) => setSelectedProjectId(e.target.value)}
+                onValueChange={setSelectedProjectId}
                 disabled={isSubmitting}
               >
-                <option value="">Select a project...</option>
-                {availableProjects.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a project..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableProjects.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Message <span className="text-red-500">*</span>
-            </label>
+            <Label>
+              Message <span className="text-destructive">*</span>
+            </Label>
             <PromptInput
               key={open ? `create-task-input-${tempTaskId}` : 'closed'}
-              onSubmit={handlePromptSubmit}
+              onSubmit={() => handleSubmit(false)}
               onChange={setChatPrompt}
               placeholder="Describe what you want Claude to do... (type / for commands)"
               disabled={isSubmitting}
               hideSendButton
-              disableSubmitShortcut
               hideStats
               taskId={tempTaskId}
             />
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="title" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Title <span className="text-xs text-muted-foreground">(optional)</span>
-            </label>
+            <Label htmlFor="title">
+              Title <span className="text-xs text-muted-foreground font-normal">(optional)</span>
+            </Label>
             <Input
               id="title"
               placeholder="Enter custom title (defaults to message if empty)..."
@@ -271,7 +276,7 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>⌘/Ctrl + Shift + Enter</p>
+                <p>⌘/Ctrl + Enter</p>
               </TooltipContent>
             </Tooltip>
             <Tooltip>
@@ -286,7 +291,7 @@ export function CreateTaskDialog({ open, onOpenChange, onTaskCreated }: CreateTa
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>⌘/Ctrl + Enter</p>
+                <p>Enter</p>
               </TooltipContent>
             </Tooltip>
           </div>

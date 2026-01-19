@@ -154,14 +154,17 @@ app.prepare().then(async () => {
     // Cancel/kill attempt
     socket.on('attempt:cancel', async (data: { attemptId: string }) => {
       const { attemptId } = data;
-      const cancelled = agentManager.cancel(attemptId);
 
-      if (cancelled) {
-        // Get attempt to retrieve taskId for global event
-        const attempt = await db.query.attempts.findFirst({
-          where: eq(schema.attempts.id, attemptId),
-        });
+      // Try to cancel in-memory agent (may not exist if server restarted)
+      agentManager.cancel(attemptId);
 
+      // Always update DB status - handles both in-memory and stale attempts
+      // Get attempt to retrieve taskId for global event
+      const attempt = await db.query.attempts.findFirst({
+        where: eq(schema.attempts.id, attemptId),
+      });
+
+      if (attempt && attempt.status === 'running') {
         await db
           .update(schema.attempts)
           .set({ status: 'cancelled', completedAt: Date.now() })
@@ -177,7 +180,7 @@ app.prepare().then(async () => {
         });
 
         // Global event for all clients to track cancelled tasks
-        if (attempt?.taskId) {
+        if (attempt.taskId) {
           io.emit('task:finished', { taskId: attempt.taskId, status: 'cancelled' });
         }
       }

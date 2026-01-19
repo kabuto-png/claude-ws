@@ -215,10 +215,10 @@ export function ProjectSelector({ onAddProject }: ProjectSelectorProps) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="gap-2 h-9">
-          <FolderOpen className="h-4 w-4" />
-          <span className="max-w-[150px] truncate">{displayText}</span>
-          <ChevronDown className="h-3 w-3 opacity-50" />
+        <Button variant="outline" size="sm" className="gap-2 h-9 w-[180px] justify-start">
+          <FolderOpen className="h-4 w-4 shrink-0" />
+          <span className="flex-1 text-left truncate">{displayText}</span>
+          <ChevronDown className="h-3 w-3 opacity-50 shrink-0" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">

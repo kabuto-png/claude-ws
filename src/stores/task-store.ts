@@ -214,25 +214,51 @@ export const useTaskStore = create<TaskStore>((set, get) => ({
   },
 
   updateTaskStatus: async (taskId: string, status: TaskStatus) => {
-    try {
-      const res = await fetch(`/api/tasks/${taskId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      });
-      if (!res.ok) throw new Error('Failed to update task status');
-      const updatedTask = await res.json();
+    const oldTasks = get().tasks;
+    const task = oldTasks.find((t) => t.id === taskId);
+    if (!task) return;
 
-      // Update task in list
-      get().updateTask(taskId, { status });
+    // If status is changing, move task to position 0 (top of the new status list)
+    const isStatusChanging = task.status !== status;
+    const newPosition = isStatusChanging ? 0 : task.position;
+
+    // Optimistic update: update task and shift other tasks' positions if needed
+    if (isStatusChanging) {
+      const updatedTasks = oldTasks.map((t) => {
+        if (t.id === taskId) {
+          return { ...t, status, position: 0 };
+        }
+        // Shift existing tasks in the new status column down by 1
+        if (t.status === status) {
+          return { ...t, position: t.position + 1 };
+        }
+        return t;
+      });
+      set({ tasks: updatedTasks });
 
       // Update selectedTask if it's the same task
       const selected = get().selectedTask;
       if (selected?.id === taskId) {
-        set({ selectedTask: { ...selected, status } });
+        set({ selectedTask: { ...selected, status, position: 0 } });
       }
+    }
+
+    try {
+      // Use reorder endpoint to update both status and position
+      const res = await fetch('/api/tasks/reorder', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId, status, position: newPosition }),
+      });
+      if (!res.ok) throw new Error('Failed to update task status');
     } catch (error) {
       console.error('Error updating task status:', error);
+      // Revert on failure
+      set({ tasks: oldTasks });
+      const selected = get().selectedTask;
+      if (selected?.id === taskId && task) {
+        set({ selectedTask: { ...selected, status: task.status, position: task.position } });
+      }
     }
   },
 

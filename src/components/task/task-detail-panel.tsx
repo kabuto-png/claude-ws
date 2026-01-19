@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { X, Wifi, WifiOff, RotateCcw, ChevronDown, Minimize2, Maximize2 } from 'lucide-react';
+import { X, ChevronDown, Minimize2, Maximize2, Check } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -260,13 +260,9 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
     startAttempt(selectedTask.id, prompt, displayPrompt, fileIds);
   };
 
-  const handleRefreshConversation = () => {
-    setConversationKey((k) => k + 1);
-  };
-
   // Render just the conversation view
   const renderConversation = () => (
-    <div className="flex-1 overflow-hidden min-w-0">
+    <div className="flex-1 overflow-hidden min-w-0 relative z-0">
       <ConversationView
         key={conversationKey}
         taskId={selectedTask.id}
@@ -316,7 +312,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
               onCancel={cancelAttempt}
               disabled={isRunning}
               taskId={selectedTask.id}
-              initialValue={!hasSentFirstMessage && !selectedTask.chatInit && selectedTask.description ? selectedTask.description : undefined}
+              initialValue={!hasSentFirstMessage && !selectedTask.chatInit && !pendingAutoStartTask && selectedTask.description ? selectedTask.description : undefined}
             />
             <InteractiveCommandOverlay />
           </div>
@@ -368,7 +364,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
                 <ChevronDown className="size-3 text-muted-foreground" />
               </button>
               {showStatusDropdown && (
-                <div className="absolute top-full left-0 mt-1 z-50 bg-popover border rounded-md shadow-md min-w-[120px]">
+                <div className="absolute top-full left-0 mt-1.5 z-[9999] bg-popover border rounded-lg shadow-lg min-w-[140px] py-1 overflow-hidden">
                   {STATUSES.map((status) => (
                     <button
                       key={status}
@@ -379,46 +375,34 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
                         }
                       }}
                       className={cn(
-                        'w-full text-left px-3 py-1.5 text-sm hover:bg-accent transition-colors',
-                        status === selectedTask.status && 'bg-accent'
+                        'w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between gap-2',
+                        status === selectedTask.status && 'bg-accent/50'
                       )}
                     >
-                      {STATUS_CONFIG[status].label}
+                      <span className="flex items-center gap-2">
+                        <Badge variant={STATUS_CONFIG[status].variant} className="text-xs">
+                          {STATUS_CONFIG[status].label}
+                        </Badge>
+                      </span>
+                      {status === selectedTask.status && (
+                        <Check className="size-4 text-primary" />
+                      )}
                     </button>
                   ))}
                 </div>
               )}
             </div>
-            {isConnected ? (
-              <span className="flex items-center gap-1 text-xs text-green-600">
-                <Wifi className="size-3" />
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 text-xs text-red-500">
-                <WifiOff className="size-3" />
-              </span>
-            )}
           </div>
         }
         headerEnd={
-          <>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={handleRefreshConversation}
-              title="Refresh conversation"
-            >
-              <RotateCcw className="size-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setIsDetached(false)}
-              title="Maximize to panel"
-            >
-              <Maximize2 className="size-4" />
-            </Button>
-          </>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setIsDetached(false)}
+            title="Maximize to panel"
+          >
+            <Maximize2 className="size-4" />
+          </Button>
         }
       >
         {renderConversation()}
@@ -450,7 +434,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
         />
       )}
       {/* Header */}
-      <div className="px-3 sm:px-4 py-2 border-b w-full max-w-full overflow-hidden">
+      <div className="px-3 sm:px-4 py-2 border-b w-full max-w-full overflow-visible relative z-10">
         <div className="flex items-center justify-between gap-2 mb-1 w-full">
           <div className="flex items-center gap-2">
             <div className="relative">
@@ -464,7 +448,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
                 <ChevronDown className="size-3 text-muted-foreground" />
               </button>
               {showStatusDropdown && (
-                <div className="absolute top-full left-0 mt-1 z-50 bg-popover border rounded-md shadow-md min-w-[120px]">
+                <div className="absolute top-full left-0 mt-1.5 z-[9999] bg-popover border rounded-lg shadow-lg min-w-[140px] py-1 overflow-hidden">
                   {STATUSES.map((status) => (
                     <button
                       key={status}
@@ -475,37 +459,25 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
                         }
                       }}
                       className={cn(
-                        'w-full text-left px-3 py-1.5 text-sm hover:bg-accent transition-colors',
-                        status === selectedTask.status && 'bg-accent'
+                        'w-full text-left px-3 py-2 text-sm hover:bg-accent transition-colors flex items-center justify-between gap-2',
+                        status === selectedTask.status && 'bg-accent/50'
                       )}
                     >
-                      {STATUS_CONFIG[status].label}
+                      <span className="flex items-center gap-2">
+                        <Badge variant={STATUS_CONFIG[status].variant} className="text-xs">
+                          {STATUS_CONFIG[status].label}
+                        </Badge>
+                      </span>
+                      {status === selectedTask.status && (
+                        <Check className="size-4 text-primary" />
+                      )}
                     </button>
                   ))}
                 </div>
               )}
             </div>
-            {isConnected ? (
-              <span className="flex items-center gap-1 text-xs text-green-600">
-                <Wifi className="size-3" />
-                Connected
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 text-xs text-red-500">
-                <WifiOff className="size-3" />
-                Disconnected
-              </span>
-            )}
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={handleRefreshConversation}
-              title="Refresh conversation"
-            >
-              <RotateCcw className="size-4" />
-            </Button>
             {!isMobile && (
               <Button
                 variant="ghost"

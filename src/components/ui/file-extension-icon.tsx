@@ -7,6 +7,20 @@ import { cn } from '@/lib/utils';
 // CDN URL for vscode-icons SVG files
 const ICONS_CDN_BASE = 'https://raw.githubusercontent.com/vscode-icons/vscode-icons/master/icons';
 
+// Custom icon overrides for files where vscode-icons-js returns outdated/incorrect icons
+const ICON_OVERRIDES: Record<string, string> = {
+  '.vercelignore': 'file_type_vercel.svg',
+  'vercel.json': 'file_type_vercel.svg',
+  '.nowignore': 'file_type_vercel.svg',
+  'now.json': 'file_type_vercel.svg',
+  '.env': 'file_type_dotenv.svg',
+  '.env.local': 'file_type_dotenv.svg',
+  '.env.development': 'file_type_dotenv.svg',
+  '.env.production': 'file_type_dotenv.svg',
+  '.env.test': 'file_type_dotenv.svg',
+  '.env.example': 'file_type_dotenv.svg',
+};
+
 interface FileExtensionIconProps {
   /** File name or path (e.g., "index.tsx", "package.json") */
   name: string;
@@ -83,7 +97,9 @@ export function FileExtensionIcon({
   }
 
   // Get icon name from vscode-icons-js for files
-  let iconName: string | undefined = getIconForFile(name);
+  // First check custom overrides, then fall back to vscode-icons-js
+  const fileName = name.split('/').pop() || name;
+  let iconName: string | undefined = ICON_OVERRIDES[fileName] || getIconForFile(name);
 
   // Fallback to default file icon if not found
   if (!iconName) {
