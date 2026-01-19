@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { Settings, Plus, Search, PanelLeft, PanelRight, FolderTree } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useTheme } from 'next-themes';
+import { Settings, Plus, Search, PanelLeft, PanelRight, FolderTree, Sun, Moon } from 'lucide-react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +38,17 @@ export function Header({ onCreateTask, onOpenSettings, onAddProject }: HeaderPro
   const { shells } = useShellStore();
   const { activeProjectId, selectedProjectIds } = useProjectStore();
   const [searchOpen, setSearchOpen] = useState(false);
+  const { theme, setTheme, resolvedTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  // Prevent hydration mismatch
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+  };
 
   // Count running shells for current project
   const currentProjectId = activeProjectId || selectedProjectIds[0];
@@ -138,6 +150,30 @@ export function Header({ onCreateTask, onOpenSettings, onAddProject }: HeaderPro
               </span>
             </div>
           </div>
+
+          {/* Theme toggle */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={toggleTheme}
+                  className="shrink-0"
+                  disabled={!mounted}
+                >
+                  {mounted && resolvedTheme === 'dark' ? (
+                    <Sun className="h-4 w-4" />
+                  ) : (
+                    <Moon className="h-4 w-4" />
+                  )}
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Toggle theme</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
 
           {/* Right sidebar toggle - opens panel with New Task and Settings */}
           <TooltipProvider>

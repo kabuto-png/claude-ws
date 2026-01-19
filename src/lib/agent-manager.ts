@@ -107,7 +107,11 @@ class AgentManager extends EventEmitter {
       fullPrompt = `${fileRefs} ${prompt}`;
     }
 
-    fullPrompt += `\n\n<system-guidelines>\n${formatInstructions}\n</system-guidelines>`;
+    // Only add system guidelines on first turn (not resume) to prevent context bloat
+    // Resume sessions already have system prompt in conversation history
+    if (!isResume) {
+      fullPrompt += `\n\n<system-guidelines>\n${formatInstructions}\n</system-guidelines>`;
+    }
 
     // Create abort controller for cancellation
     const controller = new AbortController();

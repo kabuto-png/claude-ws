@@ -116,189 +116,6 @@
   --sidebar-ring: oklch(0.5 0 0);
 }
 
-/* VS Code Light+ Theme - Official colors from Visual Studio Code
- * Background: #FFFFFF | Sidebar: #F3F3F3 | Foreground: #333333
- * Primary Blue: #007ACC | Selection: #ADD6FF | Link: #006AB1
- * Error: #E51400 | Warning: #BF8803 | Success: #388A34
- */
-.theme-vscode-light {
-  /* Core backgrounds */
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.269 0 0);
-  --card: oklch(0.961 0 0);
-  --card-foreground: oklch(0.269 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.269 0 0);
-
-  /* Primary: VS Code Blue #007ACC */
-  --primary: oklch(0.537 0.145 245);
-  --primary-foreground: oklch(1 0 0);
-
-  /* Secondary: Light gray #E8E8E8 */
-  --secondary: oklch(0.925 0 0);
-  --secondary-foreground: oklch(0.269 0 0);
-
-  /* Muted: Gray text #717171 */
-  --muted: oklch(0.94 0 0);
-  --muted-foreground: oklch(0.51 0 0);
-
-  /* Accent: Light blue selection #ADD6FF */
-  --accent: oklch(0.855 0.068 245);
-  --accent-foreground: oklch(0.269 0 0);
-
-  /* Destructive: VS Code red #E51400 */
-  --destructive: oklch(0.52 0.22 27);
-
-  /* Borders and inputs */
-  --border: oklch(0.85 0 0);
-  --input: oklch(1 0 0);
-  --ring: oklch(0.537 0.145 245);
-
-  /* Chart colors */
-  --chart-1: oklch(0.537 0.145 245);
-  /* Blue #007ACC */
-  --chart-2: oklch(0.58 0.16 145);
-  /* Green #388A34 */
-  --chart-3: oklch(0.68 0.16 85);
-  /* Orange #BF8803 */
-  --chart-4: oklch(0.55 0.18 300);
-  /* Purple #68217A */
-  --chart-5: oklch(0.52 0.22 27);
-  /* Red #E51400 */
-
-  /* Sidebar - #F3F3F3 */
-  --sidebar: oklch(0.961 0 0);
-  --sidebar-foreground: oklch(0.269 0 0);
-  --sidebar-primary: oklch(0.537 0.145 245);
-  --sidebar-primary-foreground: oklch(1 0 0);
-  --sidebar-accent: oklch(0.90 0.02 245);
-  --sidebar-accent-foreground: oklch(0.269 0 0);
-  --sidebar-border: oklch(0.85 0 0);
-  --sidebar-ring: oklch(0.537 0.145 245);
-}
-
-/* VS Code Dark+ Theme - Official colors from Visual Studio Code
- * Background: #1E1E1E | Sidebar: #252526 | Foreground: #D4D4D4
- * Primary Blue: #007ACC | Selection: #264F78 | Link: #3794FF
- * Error: #F14C4C | Warning: #CCA700 | Input: #3C3C3C
- */
-.theme-vscode-dark {
-  /* Core backgrounds - #1E1E1E (editor), #252526 (sidebar) */
-  --background: oklch(0.173 0.001 286);
-  --foreground: oklch(0.863 0 0);
-  --card: oklch(0.199 0.002 286);
-  --card-foreground: oklch(0.863 0 0);
-  --popover: oklch(0.229 0.002 286);
-  --popover-foreground: oklch(0.863 0 0);
-
-  /* Primary: VS Code Blue #007ACC */
-  --primary: oklch(0.537 0.145 245);
-  --primary-foreground: oklch(1 0 0);
-
-  /* Secondary: Selection #264F78 */
-  --secondary: oklch(0.380 0.073 248);
-  --secondary-foreground: oklch(0.863 0 0);
-
-  /* Muted: Line number gray #858585 */
-  --muted: oklch(0.298 0 0);
-  --muted-foreground: oklch(0.587 0 0);
-
-  /* Accent: Link blue #3794FF */
-  --accent: oklch(0.653 0.181 252);
-  --accent-foreground: oklch(0.173 0 0);
-
-  /* Destructive: VS Code red #F14C4C */
-  --destructive: oklch(0.609 0.207 21);
-
-  /* Borders and inputs - #3C3C3C (input), #454545 (border) */
-  --border: oklch(0.34 0 0);
-  --input: oklch(0.298 0 0);
-  --ring: oklch(0.537 0.145 245);
-
-  /* Chart colors - VS Code ANSI palette */
-  --chart-1: oklch(0.537 0.145 245);
-  /* Blue #007ACC */
-  --chart-2: oklch(0.70 0.17 155);
-  /* Green #0DBC79 */
-  --chart-3: oklch(0.741 0.165 92);
-  /* Yellow/Warning #CCA700 */
-  --chart-4: oklch(0.55 0.18 300);
-  /* Purple #B267E6 */
-  --chart-5: oklch(0.609 0.207 21);
-  /* Red #F14C4C */
-
-  /* Sidebar - #252526 */
-  --sidebar: oklch(0.199 0.002 286);
-  --sidebar-foreground: oklch(0.78 0 0);
-  --sidebar-primary: oklch(0.537 0.145 245);
-  --sidebar-primary-foreground: oklch(0.863 0 0);
-  --sidebar-accent: oklch(0.380 0.073 248);
-  --sidebar-accent-foreground: oklch(0.863 0 0);
-  --sidebar-border: oklch(0.34 0 0);
-  --sidebar-ring: oklch(0.537 0.145 245);
-}
-
-/* Dracula Theme - Official Palette from draculatheme.com/spec
- * Background: #282A36 | Current Line: #44475A | Foreground: #F8F8F2
- * Comment: #6272A4 | Cyan: #8BE9FD | Green: #50FA7B | Orange: #FFB86C
- * Pink: #FF79C6 | Purple: #BD93F9 | Red: #FF5555 | Yellow: #F1FA8C
- * WCAG 2.1 Level AA compliant (4.5:1 contrast ratio)
- */
-.dracula-dark {
-  /* Core backgrounds - #282A36 (bg), #44475A (selection/card) */
-  --background: oklch(0.224 0.023 277);
-  --foreground: oklch(0.975 0.005 110);
-  --card: oklch(0.315 0.028 275);
-  --card-foreground: oklch(0.975 0.005 110);
-  --popover: oklch(0.315 0.028 275);
-  --popover-foreground: oklch(0.975 0.005 110);
-
-  /* Primary: Purple #BD93F9 - Dracula's signature color */
-  --primary: oklch(0.720 0.160 295);
-  --primary-foreground: oklch(0.224 0.023 277);
-
-  /* Secondary: Selection #44475A */
-  --secondary: oklch(0.315 0.028 275);
-  --secondary-foreground: oklch(0.975 0.005 110);
-
-  /* Muted: Comment #6272A4 */
-  --muted: oklch(0.315 0.028 275);
-  --muted-foreground: oklch(0.512 0.067 260);
-
-  /* Accent: Light grey for hover states */
-  --accent: oklch(0.38 0.015 275);
-  --accent-foreground: oklch(0.975 0.005 110);
-
-  /* Destructive: Red #FF5555 */
-  --destructive: oklch(0.658 0.254 22);
-
-  /* Borders and inputs */
-  --border: oklch(0.38 0.03 275);
-  --input: oklch(0.315 0.028 275);
-  --ring: oklch(0.720 0.160 295);
-
-  /* Chart colors using Dracula palette */
-  --chart-1: oklch(0.720 0.160 295);
-  /* Purple #BD93F9 */
-  --chart-2: oklch(0.869 0.234 145);
-  /* Green #50FA7B */
-  --chart-3: oklch(0.948 0.156 108);
-  /* Yellow #F1FA8C */
-  --chart-4: oklch(0.718 0.195 350);
-  /* Pink #FF79C6 */
-  --chart-5: oklch(0.878 0.104 205);
-  /* Cyan #8BE9FD */
-
-  /* Sidebar */
-  --sidebar: oklch(0.224 0.023 277);
-  --sidebar-foreground: oklch(0.975 0.005 110);
-  --sidebar-primary: oklch(0.720 0.160 295);
-  --sidebar-primary-foreground: oklch(0.975 0.005 110);
-  --sidebar-accent: oklch(0.38 0.015 275);
-  --sidebar-accent-foreground: oklch(0.975 0.005 110);
-  --sidebar-border: oklch(0.38 0.03 275);
-  --sidebar-ring: oklch(0.720 0.160 295);
-}
 
 @layer base {
   * {
@@ -889,28 +706,28 @@
 /* Diff row backgrounds - very subtle, just hint of color */
 /* Light theme - use teal for additions to avoid conflict with syntax highlighting green */
 :root .diff-row-added,
-.theme-vscode-light .diff-row-added {
+.diff-row-added {
   background-color: rgba(20, 184, 166, 0.12);
   border-left: 3px solid rgba(20, 184, 166, 0.8);
 }
 
 :root .diff-row-removed,
-.theme-vscode-light .diff-row-removed {
+.diff-row-removed {
   background-color: rgba(248, 81, 73, 0.12);
   border-left: 3px solid rgba(248, 81, 73, 0.8);
 }
 
 /* Dark theme - use teal for additions to avoid conflict with syntax highlighting */
 .dark .diff-row-added,
-.theme-vscode-dark .diff-row-added,
-.dracula-dark .diff-row-added {
+.dark.diff-row-added,
+.dark.diff-row-added {
   background-color: rgba(20, 184, 166, 0.2);
   border-left: 3px solid #2dd4bf;
 }
 
 .dark .diff-row-removed,
-.theme-vscode-dark .diff-row-removed,
-.dracula-dark .diff-row-removed {
+.dark.diff-row-removed,
+.dark.diff-row-removed {
   background-color: rgba(218, 54, 51, 0.2);
   border-left: 3px solid #f85149;
 }
@@ -1021,9 +838,9 @@
 :root .hljs,
 :root .diff-added,
 :root .diff-removed,
-.theme-vscode-light .hljs,
-.theme-vscode-light .diff-added,
-.theme-vscode-light .diff-removed {
+.hljs,
+.diff-added,
+.diff-removed {
   color: #24292f;
 }
 
@@ -1031,7 +848,7 @@
 :root .hljs-keyword,
 :root .diff-added .hljs-keyword,
 :root .diff-removed .hljs-keyword,
-.theme-vscode-light .hljs-keyword {
+.hljs-keyword {
   color: #cf222e;
   font-weight: 500;
 }
@@ -1042,7 +859,7 @@
 :root .hljs-title.class_,
 :root .diff-added .hljs-title,
 :root .diff-removed .hljs-title,
-.theme-vscode-light .hljs-title {
+.hljs-title {
   color: #8250df;
 }
 
@@ -1050,7 +867,7 @@
 :root .hljs-built_in,
 :root .diff-added .hljs-built_in,
 :root .diff-removed .hljs-built_in,
-.theme-vscode-light .hljs-built_in {
+.hljs-built_in {
   color: #953800;
 }
 
@@ -1059,7 +876,7 @@
 :root .hljs-template-variable,
 :root .diff-added .hljs-string,
 :root .diff-removed .hljs-string,
-.theme-vscode-light .hljs-string {
+.hljs-string {
   color: #0a3069;
 }
 
@@ -1070,8 +887,8 @@
 :root .diff-added .hljs-literal,
 :root .diff-removed .hljs-number,
 :root .diff-removed .hljs-literal,
-.theme-vscode-light .hljs-number,
-.theme-vscode-light .hljs-literal {
+.hljs-number,
+.hljs-literal {
   color: #0550ae;
 }
 
@@ -1083,8 +900,8 @@
 :root .diff-added .hljs-attr,
 :root .diff-removed .hljs-variable,
 :root .diff-removed .hljs-attr,
-.theme-vscode-light .hljs-variable,
-.theme-vscode-light .hljs-attr {
+.hljs-variable,
+.hljs-attr {
   color: #953800;
 }
 
@@ -1101,9 +918,9 @@
 :root .diff-added .hljs-type,
 :root .diff-removed .hljs-property,
 :root .diff-removed .hljs-type,
-.theme-vscode-light .hljs-property,
-.theme-vscode-light .hljs-type,
-.theme-vscode-light .hljs-class {
+.hljs-property,
+.hljs-type,
+.hljs-class {
   color: #116329;
 }
 
@@ -1111,7 +928,7 @@
 :root .hljs-section,
 :root .diff-added .hljs-section,
 :root .diff-removed .hljs-section,
-.theme-vscode-light .hljs-section {
+.hljs-section {
   color: #0550ae;
   font-weight: 600;
 }
@@ -1120,7 +937,7 @@
 :root .hljs-link,
 :root .diff-added .hljs-link,
 :root .diff-removed .hljs-link,
-.theme-vscode-light .hljs-link {
+.hljs-link {
   color: #0a3069;
   text-decoration: underline;
 }
@@ -1129,7 +946,7 @@
 :root .hljs-quote,
 :root .diff-added .hljs-quote,
 :root .diff-removed .hljs-quote,
-.theme-vscode-light .hljs-quote {
+.hljs-quote {
   color: #57606a;
   font-style: italic;
 }
@@ -1138,7 +955,7 @@
 :root .hljs-bullet,
 :root .diff-added .hljs-bullet,
 :root .diff-removed .hljs-bullet,
-.theme-vscode-light .hljs-bullet {
+.hljs-bullet {
   color: #953800;
 }
 
@@ -1146,7 +963,7 @@
 :root .hljs-code,
 :root .diff-added .hljs-code,
 :root .diff-removed .hljs-code,
-.theme-vscode-light .hljs-code {
+.hljs-code {
   color: #0a3069;
 }
 
@@ -1154,7 +971,7 @@
 :root .hljs-formula,
 :root .diff-added .hljs-formula,
 :root .diff-removed .hljs-formula,
-.theme-vscode-light .hljs-formula {
+.hljs-formula {
   color: #116329;
 }
 
@@ -1162,7 +979,7 @@
 :root .hljs-subst,
 :root .diff-added .hljs-subst,
 :root .diff-removed .hljs-subst,
-.theme-vscode-light .hljs-subst {
+.hljs-subst {
   color: #24292f;
 }
 
@@ -1170,7 +987,7 @@
 :root .hljs-doctag,
 :root .diff-added .hljs-doctag,
 :root .diff-removed .hljs-doctag,
-.theme-vscode-light .hljs-doctag {
+.hljs-doctag {
   color: #cf222e;
 }
 
@@ -1178,7 +995,7 @@
 :root .hljs-comment,
 :root .diff-added .hljs-comment,
 :root .diff-removed .hljs-comment,
-.theme-vscode-light .hljs-comment {
+.hljs-comment {
   color: #57606a;
   font-style: italic;
 }
@@ -1187,7 +1004,7 @@
 :root .hljs-operator,
 :root .diff-added .hljs-operator,
 :root .diff-removed .hljs-operator,
-.theme-vscode-light .hljs-operator {
+.hljs-operator {
   color: #cf222e;
 }
 
@@ -1195,7 +1012,7 @@
 :root .hljs-meta,
 :root .diff-added .hljs-meta,
 :root .diff-removed .hljs-meta,
-.theme-vscode-light .hljs-meta {
+.hljs-meta {
   color: #0550ae;
 }
 
@@ -1203,7 +1020,7 @@
 :root .hljs-regexp,
 :root .diff-added .hljs-regexp,
 :root .diff-removed .hljs-regexp,
-.theme-vscode-light .hljs-regexp {
+.hljs-regexp {
   color: #116329;
 }
 
@@ -1211,7 +1028,7 @@
 :root .hljs-tag,
 :root .diff-added .hljs-tag,
 :root .diff-removed .hljs-tag,
-.theme-vscode-light .hljs-tag {
+.hljs-tag {
   color: #116329;
 }
 
@@ -1219,7 +1036,7 @@
 :root .hljs-attribute,
 :root .diff-added .hljs-attribute,
 :root .diff-removed .hljs-attribute,
-.theme-vscode-light .hljs-attribute {
+.hljs-attribute {
   color: #0550ae;
 }
 
@@ -1227,7 +1044,7 @@
 :root .hljs-symbol,
 :root .diff-added .hljs-symbol,
 :root .diff-removed .hljs-symbol,
-.theme-vscode-light .hljs-symbol {
+.hljs-symbol {
   color: #953800;
 }
 
@@ -1235,7 +1052,7 @@
 :root .hljs-punctuation,
 :root .diff-added .hljs-punctuation,
 :root .diff-removed .hljs-punctuation,
-.theme-vscode-light .hljs-punctuation {
+.hljs-punctuation {
   color: #24292f;
 }
 
@@ -1246,24 +1063,24 @@
 .dark .hljs,
 .dark .diff-added,
 .dark .diff-removed,
-.theme-vscode-dark .hljs,
-.theme-vscode-dark .diff-added,
-.theme-vscode-dark .diff-removed,
-.dracula-dark .hljs,
-.dracula-dark .diff-added,
-.dracula-dark .diff-removed {
+.dark.hljs,
+.dark.diff-added,
+.dark.diff-removed,
+.dark.hljs,
+.dark.diff-added,
+.dark.diff-removed {
   color: #e6edf3;
 }
 
 .dark .hljs-keyword,
 .dark .diff-added .hljs-keyword,
 .dark .diff-removed .hljs-keyword,
-.theme-vscode-dark .hljs-keyword,
-.theme-vscode-dark .diff-added .hljs-keyword,
-.theme-vscode-dark .diff-removed .hljs-keyword,
-.dracula-dark .hljs-keyword,
-.dracula-dark .diff-added .hljs-keyword,
-.dracula-dark .diff-removed .hljs-keyword {
+.dark.hljs-keyword,
+.dark.diff-added .hljs-keyword,
+.dark.diff-removed .hljs-keyword,
+.dark.hljs-keyword,
+.dark.diff-added .hljs-keyword,
+.dark.diff-removed .hljs-keyword {
   color: #ff7b72;
 }
 
@@ -1272,28 +1089,28 @@
 .dark .hljs-title.class_,
 .dark .diff-added .hljs-title,
 .dark .diff-removed .hljs-title,
-.theme-vscode-dark .hljs-title,
-.theme-vscode-dark .hljs-title.function_,
-.theme-vscode-dark .hljs-title.class_,
-.theme-vscode-dark .diff-added .hljs-title,
-.theme-vscode-dark .diff-removed .hljs-title,
-.dracula-dark .hljs-title,
-.dracula-dark .hljs-title.function_,
-.dracula-dark .hljs-title.class_,
-.dracula-dark .diff-added .hljs-title,
-.dracula-dark .diff-removed .hljs-title {
+.dark.hljs-title,
+.dark.hljs-title.function_,
+.dark.hljs-title.class_,
+.dark.diff-added .hljs-title,
+.dark.diff-removed .hljs-title,
+.dark.hljs-title,
+.dark.hljs-title.function_,
+.dark.hljs-title.class_,
+.dark.diff-added .hljs-title,
+.dark.diff-removed .hljs-title {
   color: #d2a8ff;
 }
 
 .dark .hljs-built_in,
 .dark .diff-added .hljs-built_in,
 .dark .diff-removed .hljs-built_in,
-.theme-vscode-dark .hljs-built_in,
-.theme-vscode-dark .diff-added .hljs-built_in,
-.theme-vscode-dark .diff-removed .hljs-built_in,
-.dracula-dark .hljs-built_in,
-.dracula-dark .diff-added .hljs-built_in,
-.dracula-dark .diff-removed .hljs-built_in {
+.dark.hljs-built_in,
+.dark.diff-added .hljs-built_in,
+.dark.diff-removed .hljs-built_in,
+.dark.hljs-built_in,
+.dark.diff-added .hljs-built_in,
+.dark.diff-removed .hljs-built_in {
   color: #ffa657;
 }
 
@@ -1302,14 +1119,14 @@
 .dark .hljs-template-variable,
 .dark .diff-added .hljs-string,
 .dark .diff-removed .hljs-string,
-.theme-vscode-dark .hljs-string,
-.theme-vscode-dark .hljs-template-variable,
-.theme-vscode-dark .diff-added .hljs-string,
-.theme-vscode-dark .diff-removed .hljs-string,
-.dracula-dark .hljs-string,
-.dracula-dark .hljs-template-variable,
-.dracula-dark .diff-added .hljs-string,
-.dracula-dark .diff-removed .hljs-string {
+.dark.hljs-string,
+.dark.hljs-template-variable,
+.dark.diff-added .hljs-string,
+.dark.diff-removed .hljs-string,
+.dark.hljs-string,
+.dark.hljs-template-variable,
+.dark.diff-added .hljs-string,
+.dark.diff-removed .hljs-string {
   color: #f0c674;
 }
 
@@ -1320,18 +1137,18 @@
 .dark .diff-added .hljs-literal,
 .dark .diff-removed .hljs-number,
 .dark .diff-removed .hljs-literal,
-.theme-vscode-dark .hljs-number,
-.theme-vscode-dark .hljs-literal,
-.theme-vscode-dark .diff-added .hljs-number,
-.theme-vscode-dark .diff-added .hljs-literal,
-.theme-vscode-dark .diff-removed .hljs-number,
-.theme-vscode-dark .diff-removed .hljs-literal,
-.dracula-dark .hljs-number,
-.dracula-dark .hljs-literal,
-.dracula-dark .diff-added .hljs-number,
-.dracula-dark .diff-added .hljs-literal,
-.dracula-dark .diff-removed .hljs-number,
-.dracula-dark .diff-removed .hljs-literal {
+.dark.hljs-number,
+.dark.hljs-literal,
+.dark.diff-added .hljs-number,
+.dark.diff-added .hljs-literal,
+.dark.diff-removed .hljs-number,
+.dark.diff-removed .hljs-literal,
+.dark.hljs-number,
+.dark.hljs-literal,
+.dark.diff-added .hljs-number,
+.dark.diff-added .hljs-literal,
+.dark.diff-removed .hljs-number,
+.dark.diff-removed .hljs-literal {
   color: #d19a66;
 }
 
@@ -1344,24 +1161,24 @@
 .dark .diff-removed .hljs-variable,
 .dark .diff-removed .hljs-attr,
 .dark .diff-removed .hljs-params,
-.theme-vscode-dark .hljs-variable,
-.theme-vscode-dark .hljs-attr,
-.theme-vscode-dark .hljs-params,
-.theme-vscode-dark .diff-added .hljs-variable,
-.theme-vscode-dark .diff-added .hljs-attr,
-.theme-vscode-dark .diff-added .hljs-params,
-.theme-vscode-dark .diff-removed .hljs-variable,
-.theme-vscode-dark .diff-removed .hljs-attr,
-.theme-vscode-dark .diff-removed .hljs-params,
-.dracula-dark .hljs-variable,
-.dracula-dark .hljs-attr,
-.dracula-dark .hljs-params,
-.dracula-dark .diff-added .hljs-variable,
-.dracula-dark .diff-added .hljs-attr,
-.dracula-dark .diff-added .hljs-params,
-.dracula-dark .diff-removed .hljs-variable,
-.dracula-dark .diff-removed .hljs-attr,
-.dracula-dark .diff-removed .hljs-params {
+.dark.hljs-variable,
+.dark.hljs-attr,
+.dark.hljs-params,
+.dark.diff-added .hljs-variable,
+.dark.diff-added .hljs-attr,
+.dark.diff-added .hljs-params,
+.dark.diff-removed .hljs-variable,
+.dark.diff-removed .hljs-attr,
+.dark.diff-removed .hljs-params,
+.dark.hljs-variable,
+.dark.hljs-attr,
+.dark.hljs-params,
+.dark.diff-added .hljs-variable,
+.dark.diff-added .hljs-attr,
+.dark.diff-added .hljs-params,
+.dark.diff-removed .hljs-variable,
+.dark.diff-removed .hljs-attr,
+.dark.diff-removed .hljs-params {
   color: #ffa657;
 }
 
@@ -1369,12 +1186,12 @@
 .dark .hljs-property,
 .dark .diff-added .hljs-property,
 .dark .diff-removed .hljs-property,
-.theme-vscode-dark .hljs-property,
-.theme-vscode-dark .diff-added .hljs-property,
-.theme-vscode-dark .diff-removed .hljs-property,
-.dracula-dark .hljs-property,
-.dracula-dark .diff-added .hljs-property,
-.dracula-dark .diff-removed .hljs-property {
+.dark.hljs-property,
+.dark.diff-added .hljs-property,
+.dark.diff-removed .hljs-property,
+.dark.hljs-property,
+.dark.diff-added .hljs-property,
+.dark.diff-removed .hljs-property {
   color: #e5c07b;
 }
 
@@ -1392,30 +1209,30 @@
 .dark .diff-removed .hljs-type,
 .dark .diff-removed .hljs-name,
 .dark .diff-removed .hljs-class,
-.theme-vscode-dark .hljs-type,
-.theme-vscode-dark .hljs-name,
-.theme-vscode-dark .hljs-class,
-.theme-vscode-dark .hljs-selector-class,
-.theme-vscode-dark .hljs-selector-tag,
-.theme-vscode-dark .hljs-selector-id,
-.theme-vscode-dark .diff-added .hljs-type,
-.theme-vscode-dark .diff-added .hljs-name,
-.theme-vscode-dark .diff-added .hljs-class,
-.theme-vscode-dark .diff-removed .hljs-type,
-.theme-vscode-dark .diff-removed .hljs-name,
-.theme-vscode-dark .diff-removed .hljs-class,
-.dracula-dark .hljs-type,
-.dracula-dark .hljs-name,
-.dracula-dark .hljs-class,
-.dracula-dark .hljs-selector-class,
-.dracula-dark .hljs-selector-tag,
-.dracula-dark .hljs-selector-id,
-.dracula-dark .diff-added .hljs-type,
-.dracula-dark .diff-added .hljs-name,
-.dracula-dark .diff-added .hljs-class,
-.dracula-dark .diff-removed .hljs-type,
-.dracula-dark .diff-removed .hljs-name,
-.dracula-dark .diff-removed .hljs-class {
+.dark.hljs-type,
+.dark.hljs-name,
+.dark.hljs-class,
+.dark.hljs-selector-class,
+.dark.hljs-selector-tag,
+.dark.hljs-selector-id,
+.dark.diff-added .hljs-type,
+.dark.diff-added .hljs-name,
+.dark.diff-added .hljs-class,
+.dark.diff-removed .hljs-type,
+.dark.diff-removed .hljs-name,
+.dark.diff-removed .hljs-class,
+.dark.hljs-type,
+.dark.hljs-name,
+.dark.hljs-class,
+.dark.hljs-selector-class,
+.dark.hljs-selector-tag,
+.dark.hljs-selector-id,
+.dark.diff-added .hljs-type,
+.dark.diff-added .hljs-name,
+.dark.diff-added .hljs-class,
+.dark.diff-removed .hljs-type,
+.dark.diff-removed .hljs-name,
+.dark.diff-removed .hljs-class {
   color: #e06c75;
 }
 
@@ -1423,12 +1240,12 @@
 .dark .hljs-section,
 .dark .diff-added .hljs-section,
 .dark .diff-removed .hljs-section,
-.theme-vscode-dark .hljs-section,
-.theme-vscode-dark .diff-added .hljs-section,
-.theme-vscode-dark .diff-removed .hljs-section,
-.dracula-dark .hljs-section,
-.dracula-dark .diff-added .hljs-section,
-.dracula-dark .diff-removed .hljs-section {
+.dark.hljs-section,
+.dark.diff-added .hljs-section,
+.dark.diff-removed .hljs-section,
+.dark.hljs-section,
+.dark.diff-added .hljs-section,
+.dark.diff-removed .hljs-section {
   color: #d19a66;
   font-weight: 600;
 }
@@ -1437,12 +1254,12 @@
 .dark .hljs-link,
 .dark .diff-added .hljs-link,
 .dark .diff-removed .hljs-link,
-.theme-vscode-dark .hljs-link,
-.theme-vscode-dark .diff-added .hljs-link,
-.theme-vscode-dark .diff-removed .hljs-link,
-.dracula-dark .hljs-link,
-.dracula-dark .diff-added .hljs-link,
-.dracula-dark .diff-removed .hljs-link {
+.dark.hljs-link,
+.dark.diff-added .hljs-link,
+.dark.diff-removed .hljs-link,
+.dark.hljs-link,
+.dark.diff-added .hljs-link,
+.dark.diff-removed .hljs-link {
   color: #f0c674;
   text-decoration: underline;
 }
@@ -1450,12 +1267,12 @@
 .dark .hljs-quote,
 .dark .diff-added .hljs-quote,
 .dark .diff-removed .hljs-quote,
-.theme-vscode-dark .hljs-quote,
-.theme-vscode-dark .diff-added .hljs-quote,
-.theme-vscode-dark .diff-removed .hljs-quote,
-.dracula-dark .hljs-quote,
-.dracula-dark .diff-added .hljs-quote,
-.dracula-dark .diff-removed .hljs-quote {
+.dark.hljs-quote,
+.dark.diff-added .hljs-quote,
+.dark.diff-removed .hljs-quote,
+.dark.hljs-quote,
+.dark.diff-added .hljs-quote,
+.dark.diff-removed .hljs-quote {
   color: #8b949e;
   font-style: italic;
 }
@@ -1463,12 +1280,12 @@
 .dark .hljs-bullet,
 .dark .diff-added .hljs-bullet,
 .dark .diff-removed .hljs-bullet,
-.theme-vscode-dark .hljs-bullet,
-.theme-vscode-dark .diff-added .hljs-bullet,
-.theme-vscode-dark .diff-removed .hljs-bullet,
-.dracula-dark .hljs-bullet,
-.dracula-dark .diff-added .hljs-bullet,
-.dracula-dark .diff-removed .hljs-bullet {
+.dark.hljs-bullet,
+.dark.diff-added .hljs-bullet,
+.dark.diff-removed .hljs-bullet,
+.dark.hljs-bullet,
+.dark.diff-added .hljs-bullet,
+.dark.diff-removed .hljs-bullet {
   color: #ffa657;
 }
 
@@ -1476,12 +1293,12 @@
 .dark .hljs-code,
 .dark .diff-added .hljs-code,
 .dark .diff-removed .hljs-code,
-.theme-vscode-dark .hljs-code,
-.theme-vscode-dark .diff-added .hljs-code,
-.theme-vscode-dark .diff-removed .hljs-code,
-.dracula-dark .hljs-code,
-.dracula-dark .diff-added .hljs-code,
-.dracula-dark .diff-removed .hljs-code {
+.dark.hljs-code,
+.dark.diff-added .hljs-code,
+.dark.diff-removed .hljs-code,
+.dark.hljs-code,
+.dark.diff-added .hljs-code,
+.dark.diff-removed .hljs-code {
   color: #f0c674;
 }
 
@@ -1489,60 +1306,60 @@
 .dark .hljs-formula,
 .dark .diff-added .hljs-formula,
 .dark .diff-removed .hljs-formula,
-.theme-vscode-dark .hljs-formula,
-.theme-vscode-dark .diff-added .hljs-formula,
-.theme-vscode-dark .diff-removed .hljs-formula,
-.dracula-dark .hljs-formula,
-.dracula-dark .diff-added .hljs-formula,
-.dracula-dark .diff-removed .hljs-formula {
+.dark.hljs-formula,
+.dark.diff-added .hljs-formula,
+.dark.diff-removed .hljs-formula,
+.dark.hljs-formula,
+.dark.diff-added .hljs-formula,
+.dark.diff-removed .hljs-formula {
   color: #e5c07b;
 }
 
 .dark .hljs-subst,
 .dark .diff-added .hljs-subst,
 .dark .diff-removed .hljs-subst,
-.theme-vscode-dark .hljs-subst,
-.theme-vscode-dark .diff-added .hljs-subst,
-.theme-vscode-dark .diff-removed .hljs-subst,
-.dracula-dark .hljs-subst,
-.dracula-dark .diff-added .hljs-subst,
-.dracula-dark .diff-removed .hljs-subst {
+.dark.hljs-subst,
+.dark.diff-added .hljs-subst,
+.dark.diff-removed .hljs-subst,
+.dark.hljs-subst,
+.dark.diff-added .hljs-subst,
+.dark.diff-removed .hljs-subst {
   color: #e6edf3;
 }
 
 .dark .hljs-doctag,
 .dark .diff-added .hljs-doctag,
 .dark .diff-removed .hljs-doctag,
-.theme-vscode-dark .hljs-doctag,
-.theme-vscode-dark .diff-added .hljs-doctag,
-.theme-vscode-dark .diff-removed .hljs-doctag,
-.dracula-dark .hljs-doctag,
-.dracula-dark .diff-added .hljs-doctag,
-.dracula-dark .diff-removed .hljs-doctag {
+.dark.hljs-doctag,
+.dark.diff-added .hljs-doctag,
+.dark.diff-removed .hljs-doctag,
+.dark.hljs-doctag,
+.dark.diff-added .hljs-doctag,
+.dark.diff-removed .hljs-doctag {
   color: #ff7b72;
 }
 
 .dark .hljs-comment,
 .dark .diff-added .hljs-comment,
 .dark .diff-removed .hljs-comment,
-.theme-vscode-dark .hljs-comment,
-.theme-vscode-dark .diff-added .hljs-comment,
-.theme-vscode-dark .diff-removed .hljs-comment,
-.dracula-dark .hljs-comment,
-.dracula-dark .diff-added .hljs-comment,
-.dracula-dark .diff-removed .hljs-comment {
+.dark.hljs-comment,
+.dark.diff-added .hljs-comment,
+.dark.diff-removed .hljs-comment,
+.dark.hljs-comment,
+.dark.diff-added .hljs-comment,
+.dark.diff-removed .hljs-comment {
   color: #8b949e;
 }
 
 .dark .hljs-operator,
 .dark .diff-added .hljs-operator,
 .dark .diff-removed .hljs-operator,
-.theme-vscode-dark .hljs-operator,
-.theme-vscode-dark .diff-added .hljs-operator,
-.theme-vscode-dark .diff-removed .hljs-operator,
-.dracula-dark .hljs-operator,
-.dracula-dark .diff-added .hljs-operator,
-.dracula-dark .diff-removed .hljs-operator {
+.dark.hljs-operator,
+.dark.diff-added .hljs-operator,
+.dark.diff-removed .hljs-operator,
+.dark.hljs-operator,
+.dark.diff-added .hljs-operator,
+.dark.diff-removed .hljs-operator {
   color: #ff7b72;
 }
 
@@ -1550,12 +1367,12 @@
 .dark .hljs-meta,
 .dark .diff-added .hljs-meta,
 .dark .diff-removed .hljs-meta,
-.theme-vscode-dark .hljs-meta,
-.theme-vscode-dark .diff-added .hljs-meta,
-.theme-vscode-dark .diff-removed .hljs-meta,
-.dracula-dark .hljs-meta,
-.dracula-dark .diff-added .hljs-meta,
-.dracula-dark .diff-removed .hljs-meta {
+.dark.hljs-meta,
+.dark.diff-added .hljs-meta,
+.dark.diff-removed .hljs-meta,
+.dark.hljs-meta,
+.dark.diff-added .hljs-meta,
+.dark.diff-removed .hljs-meta {
   color: #d19a66;
 }
 
@@ -1563,12 +1380,12 @@
 .dark .hljs-regexp,
 .dark .diff-added .hljs-regexp,
 .dark .diff-removed .hljs-regexp,
-.theme-vscode-dark .hljs-regexp,
-.theme-vscode-dark .diff-added .hljs-regexp,
-.theme-vscode-dark .diff-removed .hljs-regexp,
-.dracula-dark .hljs-regexp,
-.dracula-dark .diff-added .hljs-regexp,
-.dracula-dark .diff-removed .hljs-regexp {
+.dark.hljs-regexp,
+.dark.diff-added .hljs-regexp,
+.dark.diff-removed .hljs-regexp,
+.dark.hljs-regexp,
+.dark.diff-added .hljs-regexp,
+.dark.diff-removed .hljs-regexp {
   color: #e5c07b;
 }
 
@@ -1576,12 +1393,12 @@
 .dark .hljs-tag,
 .dark .diff-added .hljs-tag,
 .dark .diff-removed .hljs-tag,
-.theme-vscode-dark .hljs-tag,
-.theme-vscode-dark .diff-added .hljs-tag,
-.theme-vscode-dark .diff-removed .hljs-tag,
-.dracula-dark .hljs-tag,
-.dracula-dark .diff-added .hljs-tag,
-.dracula-dark .diff-removed .hljs-tag {
+.dark.hljs-tag,
+.dark.diff-added .hljs-tag,
+.dark.diff-removed .hljs-tag,
+.dark.hljs-tag,
+.dark.diff-added .hljs-tag,
+.dark.diff-removed .hljs-tag {
   color: #e06c75;
 }
 
@@ -1589,35 +1406,35 @@
 .dark .hljs-attribute,
 .dark .diff-added .hljs-attribute,
 .dark .diff-removed .hljs-attribute,
-.theme-vscode-dark .hljs-attribute,
-.theme-vscode-dark .diff-added .hljs-attribute,
-.theme-vscode-dark .diff-removed .hljs-attribute,
-.dracula-dark .hljs-attribute,
-.dracula-dark .diff-added .hljs-attribute,
-.dracula-dark .diff-removed .hljs-attribute {
+.dark.hljs-attribute,
+.dark.diff-added .hljs-attribute,
+.dark.diff-removed .hljs-attribute,
+.dark.hljs-attribute,
+.dark.diff-added .hljs-attribute,
+.dark.diff-removed .hljs-attribute {
   color: #d19a66;
 }
 
 .dark .hljs-symbol,
 .dark .diff-added .hljs-symbol,
 .dark .diff-removed .hljs-symbol,
-.theme-vscode-dark .hljs-symbol,
-.theme-vscode-dark .diff-added .hljs-symbol,
-.theme-vscode-dark .diff-removed .hljs-symbol,
-.dracula-dark .hljs-symbol,
-.dracula-dark .diff-added .hljs-symbol,
-.dracula-dark .diff-removed .hljs-symbol {
+.dark.hljs-symbol,
+.dark.diff-added .hljs-symbol,
+.dark.diff-removed .hljs-symbol,
+.dark.hljs-symbol,
+.dark.diff-added .hljs-symbol,
+.dark.diff-removed .hljs-symbol {
   color: #ffa657;
 }
 
 .dark .hljs-punctuation,
 .dark .diff-added .hljs-punctuation,
 .dark .diff-removed .hljs-punctuation,
-.theme-vscode-dark .hljs-punctuation,
-.theme-vscode-dark .diff-added .hljs-punctuation,
-.theme-vscode-dark .diff-removed .hljs-punctuation,
-.dracula-dark .hljs-punctuation,
-.dracula-dark .diff-added .hljs-punctuation,
-.dracula-dark .diff-removed .hljs-punctuation {
+.dark.hljs-punctuation,
+.dark.diff-added .hljs-punctuation,
+.dark.diff-removed .hljs-punctuation,
+.dark.hljs-punctuation,
+.dark.diff-added .hljs-punctuation,
+.dark.diff-removed .hljs-punctuation {
   color: #e6edf3;
 }

@@ -49,6 +49,9 @@ export function useAttemptStream(
   const onCompleteRef = useRef(options?.onComplete);
   const socketRef = useRef<Socket | null>(null);
   const currentTaskIdRef = useRef<string | null>(null);
+  // CRITICAL: Use ref to track currentAttemptId for synchronous filtering in socket callbacks
+  // State is async and cannot be used to filter messages in real-time
+  const currentAttemptIdRef = useRef<string | null>(null);
   const [messages, setMessages] = useState<ClaudeOutput[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [currentAttemptId, setCurrentAttemptId] = useState<string | null>(null);
@@ -91,12 +94,30 @@ export function useAttemptStream(
 
     socketInstance.on('task:finished', (data: { taskId: string; status: string }) => {
       removeRunningTask(data.taskId);
-      if (data.status === 'completed') markTaskCompleted(data.taskId);
+      if (data.status === 'completed') {
+        markTaskCompleted(data.taskId);
+        // Move task to in_review regardless of which task user is viewing
+        onCompleteRef.current?.(data.taskId);
+      }
     });
 
     // Message handling - SDK streams both deltas and complete messages
     socketInstance.on('output:json', (data: { attemptId: string; data: ClaudeOutput }) => {
       const { attemptId, data: output } = data;
+
+      // CRITICAL: Filter messages by attemptId to prevent cross-task streaming
+      // When multiple tasks are running, socket receives messages from ALL attempts
+      // Only process messages that belong to the current attempt
+      // Use ref for SYNCHRONOUS filtering - state is async and unreliable for real-time filtering
+      if (currentAttemptIdRef.current && attemptId !== currentAttemptIdRef.current) {
+        console.log('[useAttemptStream] Ignoring message from different attempt', {
+          receivedAttemptId: attemptId,
+          currentAttemptId: currentAttemptIdRef.current,
+          outputType: output.type
+        });
+        return; // EARLY RETURN - skip this message entirely
+      }
+
       console.log('[useAttemptStream] Received output:json', { attemptId, type: output.type });
 
       if (output.type === 'result') {
@@ -281,13 +302,8 @@ export function useAttemptStream(
       setCurrentAttemptId((currentId) => {
         if (data.attemptId === currentId) {
           setIsRunning(false);
-          if (currentTaskIdRef.current) {
-            removeRunningTask(currentTaskIdRef.current);
-            if (data.status === 'completed') markTaskCompleted(currentTaskIdRef.current);
-          }
-          if (currentTaskIdRef.current && data.status === 'completed') {
-            onCompleteRef.current?.(currentTaskIdRef.current);
-          }
+          // Note: removeRunningTask, markTaskCompleted, and onComplete are now handled by task:finished
+          // which fires regardless of which task user is viewing
         }
         return currentId;
       });
@@ -314,6 +330,7 @@ export function useAttemptStream(
     // Clear previous task's messages
     setMessages([]);
     setCurrentAttemptId(null);
+    currentAttemptIdRef.current = null; // CRITICAL: Sync ref to prevent stale filtering
     setCurrentPrompt(null);
     setIsRunning(false);
     setActiveQuestion(null);
@@ -333,6 +350,7 @@ export function useAttemptStream(
         if (data.attempt && data.attempt.status === 'running') {
           console.log('[useAttemptStream] Found running attempt, subscribing...', data.attempt.id);
           currentTaskIdRef.current = taskId;
+          currentAttemptIdRef.current = data.attempt.id; // CRITICAL: Sync ref BEFORE state for immediate filtering
           setCurrentAttemptId(data.attempt.id);
           setCurrentPrompt(data.attempt.prompt);
           setMessages((data.messages || []).map((m: any) => ({
@@ -366,6 +384,7 @@ export function useAttemptStream(
     setIsRunning(true);
     addRunningTask(taskId);
     socket.once('attempt:started', (data: any) => {
+      currentAttemptIdRef.current = data.attemptId; // CRITICAL: Sync ref BEFORE state for immediate filtering
       setCurrentAttemptId(data.attemptId);
       socket.emit('attempt:subscribe', { attemptId: data.attemptId });
     });
