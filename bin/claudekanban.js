@@ -53,6 +53,52 @@ if (!fs.existsSync(DB_DIR)) {
   fs.mkdirSync(DB_DIR, { recursive: true });
 }
 
+async function runMigrations() {
+  console.log('[Claude Workspace] Initializing database...');
+
+  // Simple approach: just require the db module which auto-runs initDb()
+  const dbPath = path.join(packageRoot, 'src', 'lib', 'db', 'index.ts');
+
+  try {
+    // Find tsx binary (should already be installed by this point)
+    let tsxCmd;
+    const possiblePaths = [
+      path.join(packageRoot, 'node_modules', '.bin', 'tsx'),
+      path.join(packageRoot, '..', '.bin', 'tsx'),
+    ];
+
+    for (const tsxPath of possiblePaths) {
+      if (fs.existsSync(tsxPath)) {
+        tsxCmd = tsxPath;
+        break;
+      }
+    }
+
+    if (!tsxCmd) {
+      // Try global tsx
+      try {
+        const { execSync } = require('child_process');
+        execSync('which tsx', { stdio: 'ignore' });
+        tsxCmd = 'tsx';
+      } catch {
+        throw new Error('tsx not found - this should not happen after dependency installation');
+      }
+    }
+
+    const { execSync } = require('child_process');
+    execSync(`"${tsxCmd}" -e "require('${dbPath}'); console.log('[Claude Workspace] ✓ Database ready');"`, {
+      cwd: packageRoot,
+      stdio: 'inherit',
+      env: { ...process.env }
+    });
+
+    console.log('');
+  } catch (error) {
+    console.error('[Claude Workspace] Database initialization failed:', error.message);
+    throw error;
+  }
+}
+
 async function startServer() {
   console.log('[Claude Workspace] Starting server...');
   console.log('[Claude Workspace] Database location:', DB_PATH);
@@ -86,6 +132,12 @@ async function startServer() {
       console.error('[Claude Workspace] Failed to install dependencies:', error.message);
       process.exit(1);
     }
+
+    // Run migrations after dependencies are installed
+    await runMigrations();
+  } else {
+    // Dependencies already installed, run migrations
+    await runMigrations();
   }
 
   // Check if .next directory has valid build (check BUILD_ID file)
@@ -221,9 +273,7 @@ async function main() {
     console.log('='.repeat(60));
     console.log('');
 
-    // Database will be auto-initialized by src/lib/db/index.ts on first import
-    // No need to run separate migration - initDb() handles it all
-
+    // Migrations will be run inside startServer() after dependencies are installed
     await startServer();
 
   } catch (error) {

@@ -17,3 +17,15 @@ Use it for:
 - Debugging SDK integration issues
 
 Dont try start run dev when finish a conversation only when you are asked to.
+
+## Dependencies Management
+
+**CRITICAL: NO devDependencies - ONLY dependencies**
+
+- **NEVER** add packages to `devDependencies`
+- **ALWAYS** add ALL packages to `dependencies` only
+- This is a published npm package - all imports must be available in production
+- Production code imports from devDependencies will cause build failures
+- The `scripts/check-dependencies.sh` script validates this rule before builds
+
+**Why:** When users install this package via npm, devDependencies are not installed. Any production code importing from devDependencies will fail at runtime.
