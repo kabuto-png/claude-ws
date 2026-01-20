@@ -6,6 +6,19 @@ Local-first SQLite database. Real-time streaming. Plugin system for custom agent
 
 ---
 
+## Screenshots
+
+### Desktop
+
+![Desktop Review 0](/public/desktop-review-0.jpeg)
+![Desktop Review 1](/public/desktop-review-1.jpeg)
+
+### Mobile
+
+![Mobile Review](/public/mobile-review-0.jpg)
+
+---
+
 ## Why Claude Workspace?
 
 | Feature | Benefit |
@@ -99,6 +112,87 @@ pnpm dev
 ```
 
 Open [http://localhost:8556](http://localhost:8556)
+
+---
+
+## Work Everywhere with Cloudflare Tunnel
+
+Access Claude Workspace securely from anywhere using Cloudflare Tunnel + Access.
+
+### 1. Install cloudflared
+
+```bash
+# macOS
+brew install cloudflared
+
+# Linux
+curl -L https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o cloudflared
+chmod +x cloudflared && sudo mv cloudflared /usr/local/bin/
+
+# Windows
+winget install Cloudflare.cloudflared
+```
+
+### 2. Authenticate with Cloudflare
+
+```bash
+cloudflared tunnel login
+```
+
+### 3. Create Tunnel
+
+```bash
+cloudflared tunnel create claude-workspace
+```
+
+### 4. Configure Tunnel
+
+Create `~/.cloudflared/config.yml`:
+
+```yaml
+tunnel: claude-workspace
+credentials-file: ~/.cloudflared/<TUNNEL_ID>.json
+
+ingress:
+  - hostname: claude-ws.yourdomain.com
+    service: http://localhost:8556
+  - service: http_status:404
+```
+
+### 5. Add DNS Record
+
+```bash
+cloudflared tunnel route dns claude-workspace claude-ws.yourdomain.com
+```
+
+### 6. Run Tunnel
+
+```bash
+# Foreground
+cloudflared tunnel run claude-workspace
+
+# Or as service (recommended)
+sudo cloudflared service install
+sudo systemctl enable cloudflared
+sudo systemctl start cloudflared
+```
+
+### 7. Setup Cloudflare Access (Authentication)
+
+1. Go to [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com/)
+2. Navigate to **Access** → **Applications** → **Add an application**
+3. Select **Self-hosted**
+4. Configure:
+   - **Application name**: Claude Workspace
+   - **Session duration**: 24 hours (or your preference)
+   - **Application domain**: `claude-ws.yourdomain.com`
+5. Add **Access Policy**:
+   - **Policy name**: Allowed Users
+   - **Action**: Allow
+   - **Include**: Emails ending in `@yourdomain.com` or specific email addresses
+6. Save and deploy
+
+Now access `https://claude-ws.yourdomain.com` from anywhere with Cloudflare authentication.
 
 ---
 
