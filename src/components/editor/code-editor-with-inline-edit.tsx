@@ -23,6 +23,7 @@ import {
 import { addToContextExtension, type ContextSelection } from './extensions/add-to-context';
 import { DefinitionPopup } from './definition-popup';
 import { InlineEditDialog } from './inline-edit-dialog';
+import { SelectionMentionPopup } from './selection-mention-popup';
 import { useSidebarStore } from '@/stores/sidebar-store';
 import { useInlineEdit } from '@/hooks/use-inline-edit';
 import { useInlineEditStore } from '@/stores/inline-edit-store';
@@ -53,6 +54,8 @@ interface CodeEditorWithInlineEditProps {
   enableDefinitions?: boolean;
   /** Whether to enable inline edit (Ctrl+I) */
   enableInlineEdit?: boolean;
+  /** Callback when text selection changes */
+  onSelectionChange?: (selection: { startLine: number; endLine: number } | null) => void;
 }
 
 export function CodeEditorWithInlineEdit({
@@ -67,6 +70,7 @@ export function CodeEditorWithInlineEdit({
   basePath,
   enableDefinitions = true,
   enableInlineEdit = true,
+  onSelectionChange,
 }: CodeEditorWithInlineEditProps) {
   const { theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -187,6 +191,30 @@ export function CodeEditorWithInlineEdit({
       }
     }, 100);
   }, [editorPosition, focusOnNavigate]);
+
+  // Create selection listener extension
+  const selectionListenerExtension = useMemo(() => {
+    if (!onSelectionChange) return [];
+
+    return EditorView.updateListener.of((update) => {
+      if (update.selectionSet) {
+        const selection = update.state.selection.main;
+
+        // If no selection or cursor only, report null
+        if (selection.empty) {
+          onSelectionChange(null);
+          return;
+        }
+
+        // Get line numbers
+        const doc = update.state.doc;
+        const startLine = doc.lineAt(selection.from).number;
+        const endLine = doc.lineAt(selection.to).number;
+
+        onSelectionChange({ startLine, endLine });
+      }
+    });
+  }, [onSelectionChange]);
 
   // Update diff preview when session changes
   const session = filePath ? getSession(filePath) : null;
@@ -330,6 +358,27 @@ export function CodeEditorWithInlineEdit({
     [selectedTaskId, addLineMention]
   );
 
+  // Handle add selection via popup click
+  const handleAddSelectionToContext = useCallback(
+    (startLine: number, endLine: number) => {
+      if (!filePath) return;
+      if (!selectedTaskId) {
+        toast.error('Select a task first to add context');
+        return;
+      }
+
+      const fileName = filePath.split('/').pop() || filePath;
+
+      addLineMention(selectedTaskId, fileName, filePath, startLine, endLine);
+
+      const lineRange = startLine === endLine
+        ? `L${startLine}`
+        : `L${startLine}-${endLine}`;
+      toast.success(`Added @${fileName}#${lineRange} to context`);
+    },
+    [filePath, selectedTaskId, addLineMention]
+  );
+
   // Build extensions
   const extensions = useMemo(() => {
     const langExtension = language ? languages[language] : null;
@@ -385,6 +434,11 @@ export function CodeEditorWithInlineEdit({
       );
     }
 
+    // Add selection listener if callback provided
+    if (onSelectionChange) {
+      baseExtensions.push(selectionListenerExtension);
+    }
+
     return baseExtensions;
   }, [
     language,
@@ -402,6 +456,7 @@ export function CodeEditorWithInlineEdit({
     handleAccept,
     handleReject,
     handleAddToContext,
+    selectionListenerExtension,
   ]);
 
   // Capture editor view when created
@@ -457,6 +512,15 @@ export function CodeEditorWithInlineEdit({
           onSubmit={inlineEdit.submitInstruction}
           onAccept={inlineEdit.accept}
           onReject={inlineEdit.reject}
+        />
+      )}
+
+      {/* Selection mention popup */}
+      {filePath && (
+        <SelectionMentionPopup
+          containerRef={containerRef}
+          editorViewRef={editorViewRef}
+          onAddToContext={handleAddSelectionToContext}
         />
       )}
     </div>

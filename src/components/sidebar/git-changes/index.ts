@@ -4,5 +4,6 @@ export { GitFileItem } from './git-file-item';
 export { GitStatusBadge } from './git-status-badge';
 export { DiffViewer } from './diff-viewer';
 export { DiffPreviewPanel } from './diff-preview-panel';
+export { DiffTabsPanel } from './diff-tabs-panel';
 export { GitGraph } from './git-graph';
 export { GitCommitItem } from './git-commit-item';

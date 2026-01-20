@@ -1,70 +1,43 @@
 'use client';
 
-import { useCallback, useRef } from 'react';
+import { useRef } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { ResizeHandle } from '@/components/ui/resize-handle';
-import { FileTabContent } from './file-tab-content';
+import { DiffViewer } from './diff-viewer';
 import { useResizable } from '@/hooks/use-resizable';
-import { useSidebarStore } from '@/stores/sidebar-store';
+import { useSidebarStore, type DiffTabState } from '@/stores/sidebar-store';
 import { usePanelLayoutStore, PANEL_CONFIGS } from '@/stores/panel-layout-store';
 import { cn } from '@/lib/utils';
 
-const { minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH } = PANEL_CONFIGS.filePreview;
+const { minWidth: MIN_WIDTH, maxWidth: MAX_WIDTH } = PANEL_CONFIGS.diffPreview;
 
-export function FileTabsPanel() {
+export function DiffTabsPanel() {
   const {
-    openTabs,
-    activeTabId,
-    closeTab,
-    closeAllTabs,
-    setActiveTabId,
+    diffTabs,
+    activeDiffTabId,
+    closeDiffTab,
+    closeAllDiffTabs,
+    setActiveDiffTabId,
   } = useSidebarStore();
   const { widths, setWidth: setPanelWidth } = usePanelLayoutStore();
   const panelRef = useRef<HTMLDivElement>(null);
 
   const { width, isResizing, handleMouseDown } = useResizable({
-    initialWidth: widths.filePreview,
+    initialWidth: widths.diffPreview,
     minWidth: MIN_WIDTH,
     maxWidth: MAX_WIDTH,
     direction: 'right',
-    onWidthChange: (w) => setPanelWidth('filePreview', w),
+    onWidthChange: (w) => setPanelWidth('diffPreview', w),
   });
 
-  // Handle tab close with unsaved changes warning
-  const handleCloseTab = useCallback((tabId: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    const tab = openTabs.find(t => t.id === tabId);
-    if (tab?.isDirty) {
-      const fileName = tab.filePath.split('/').pop() || tab.filePath;
-      if (!confirm(`"${fileName}" has unsaved changes. Close anyway?`)) {
-        return;
-      }
-    }
-    closeTab(tabId);
-  }, [openTabs, closeTab]);
-
-  // Handle close all tabs
-  const handleCloseAllTabs = useCallback(() => {
-    const dirtyTabs = openTabs.filter(t => t.isDirty);
-    if (dirtyTabs.length > 0) {
-      const fileNames = dirtyTabs.map(t => t.filePath.split('/').pop()).join(', ');
-      if (!confirm(`You have unsaved changes in: ${fileNames}\n\nClose all tabs anyway?`)) {
-        return;
-      }
-    }
-    closeAllTabs();
-  }, [openTabs, closeAllTabs]);
-
-  // Note: Cmd+W keyboard shortcut is now handled globally in page.tsx
-
-  // If no open tabs, don't render
-  if (openTabs.length === 0) {
+  // If no open diff tabs, don't render
+  if (diffTabs.length === 0) {
     return null;
   }
 
-  const activeTab = openTabs.find(t => t.id === activeTabId);
+  const activeTab = diffTabs.find(t => t.id === activeDiffTabId);
 
   return (
     <div
@@ -79,16 +52,16 @@ export function FileTabsPanel() {
       <div className="flex items-center border-b bg-muted/30 shrink-0">
         <ScrollArea className="flex-1">
           <div className="flex items-center h-9">
-            {openTabs.map((tab) => {
+            {diffTabs.map((tab) => {
               const fileName = tab.filePath.split('/').pop() || tab.filePath;
-              const isActive = tab.id === activeTabId;
+              const isActive = tab.id === activeDiffTabId;
               return (
                 <div
                   key={tab.id}
-                  onClick={() => setActiveTabId(tab.id)}
+                  onClick={() => setActiveDiffTabId(tab.id)}
                   onMouseUp={(e) => {
                     if (e.button === 1) { // Middle click
-                      handleCloseTab(tab.id);
+                      closeDiffTab(tab.id);
                     }
                   }}
                   className={cn(
@@ -98,21 +71,27 @@ export function FileTabsPanel() {
                       ? 'bg-background border-b-2 border-b-primary'
                       : 'bg-transparent'
                   )}
-                  title={tab.filePath}
+                  title={`${tab.filePath} (${tab.staged ? 'staged' : 'unstaged'})`}
                 >
                   <span className={cn(
-                    'text-sm truncate max-w-[150px]',
+                    'text-sm truncate max-w-[120px]',
                     isActive ? 'text-foreground' : 'text-muted-foreground'
                   )}>
                     {fileName}
                   </span>
-                  {tab.isDirty && (
-                    <span className="text-amber-500 text-lg leading-none">•</span>
-                  )}
+                  <span className={cn(
+                    'text-xs px-1 py-0.5 rounded',
+                    tab.staged ? 'bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-amber-500/20 text-amber-700 dark:text-amber-400'
+                  )}>
+                    {tab.staged ? 'S' : 'U'}
+                  </span>
                   <Button
                     variant="ghost"
                     size="icon-sm"
-                    onClick={(e) => handleCloseTab(tab.id, e)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      closeDiffTab(tab.id);
+                    }}
                     className={cn(
                       'size-5 p-0 opacity-0 group-hover:opacity-100',
                       'hover:bg-accent rounded-sm',
@@ -129,11 +108,11 @@ export function FileTabsPanel() {
         </ScrollArea>
 
         {/* Close all button */}
-        {openTabs.length > 1 && (
+        {diffTabs.length > 1 && (
           <Button
             variant="ghost"
             size="sm"
-            onClick={handleCloseAllTabs}
+            onClick={closeAllDiffTabs}
             className="text-xs text-muted-foreground h-8 px-2 mr-1"
             title="Close all tabs"
           >
@@ -145,10 +124,11 @@ export function FileTabsPanel() {
       {/* Tab content */}
       <div className="flex-1 min-h-0 overflow-hidden">
         {activeTab && (
-          <FileTabContent
+          <DiffViewer
             key={activeTab.id}
-            tabId={activeTab.id}
             filePath={activeTab.filePath}
+            staged={activeTab.staged}
+            onClose={() => closeDiffTab(activeTab.id)}
           />
         )}
       </div>

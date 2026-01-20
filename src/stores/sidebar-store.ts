@@ -10,6 +10,13 @@ export interface EditorTabState {
   isDirty: boolean;     // has unsaved changes
 }
 
+// Tab state for diff viewing
+export interface DiffTabState {
+  id: string;           // unique identifier (file path + staged flag)
+  filePath: string;     // file path
+  staged: boolean;      // whether viewing staged or unstaged diff
+}
+
 interface SidebarState {
   isOpen: boolean;
   activeTab: SidebarTab;
@@ -21,9 +28,12 @@ interface SidebarState {
   sidebarWidth: number;
   // Editor position for search result navigation
   editorPosition: { lineNumber?: number; column?: number; matchLength?: number } | null;
-  // Git diff state
+  // Git diff state - deprecated, use diffTabs instead
   diffFile: string | null;
   diffStaged: boolean;
+  // Diff tabs state
+  diffTabs: DiffTabState[];
+  activeDiffTabId: string | null;
 }
 
 interface SidebarActions {
@@ -42,9 +52,14 @@ interface SidebarActions {
   updateTabDirty: (tabId: string, isDirty: boolean) => void;
   setSidebarWidth: (width: number) => void;
   setEditorPosition: (position: { lineNumber?: number; column?: number; matchLength?: number } | null) => void;
-  // Git diff actions
+  // Git diff actions (deprecated - use openDiffTab instead)
   setDiffFile: (path: string | null, staged?: boolean) => void;
   closeDiff: () => void;
+  // Diff tab actions
+  openDiffTab: (filePath: string, staged: boolean) => void;
+  closeDiffTab: (tabId: string) => void;
+  closeAllDiffTabs: () => void;
+  setActiveDiffTabId: (tabId: string) => void;
 }
 
 type SidebarStore = SidebarState & SidebarActions;
@@ -64,6 +79,8 @@ export const useSidebarStore = create<SidebarStore>()(
       editorPosition: null,
       diffFile: null,
       diffStaged: false,
+      diffTabs: [],
+      activeDiffTabId: null,
 
       // Actions
       toggleSidebar: () => set((state) => ({ isOpen: !state.isOpen })),
@@ -149,6 +166,44 @@ export const useSidebarStore = create<SidebarStore>()(
       setDiffFile: (diffFile, staged = false) => set({ diffFile, diffStaged: staged }),
 
       closeDiff: () => set({ diffFile: null }),
+
+      // Diff tab actions
+      openDiffTab: (filePath, staged) =>
+        set((state) => {
+          // Create unique ID based on filePath and staged status
+          const tabId = `${filePath}:${staged ? 'staged' : 'unstaged'}`;
+          // Check if tab already exists - switch to it
+          const existing = state.diffTabs.find((t) => t.id === tabId);
+          if (existing) {
+            return { activeDiffTabId: existing.id };
+          }
+          // Create new tab
+          const newTab: DiffTabState = {
+            id: tabId,
+            filePath,
+            staged,
+          };
+          return {
+            diffTabs: [...state.diffTabs, newTab],
+            activeDiffTabId: newTab.id,
+          };
+        }),
+
+      closeDiffTab: (tabId) =>
+        set((state) => {
+          const newTabs = state.diffTabs.filter((t) => t.id !== tabId);
+          let newActiveId = state.activeDiffTabId;
+          // If closing active tab, select adjacent tab
+          if (tabId === state.activeDiffTabId) {
+            const idx = state.diffTabs.findIndex((t) => t.id === tabId);
+            newActiveId = newTabs[idx]?.id ?? newTabs[idx - 1]?.id ?? null;
+          }
+          return { diffTabs: newTabs, activeDiffTabId: newActiveId };
+        }),
+
+      closeAllDiffTabs: () => set({ diffTabs: [], activeDiffTabId: null }),
+
+      setActiveDiffTabId: (activeDiffTabId) => set({ activeDiffTabId }),
     }),
     {
       name: 'sidebar-store',

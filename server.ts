@@ -7,6 +7,7 @@ import { createServer } from 'http';
 import { parse } from 'url';
 import next from 'next';
 import { Server as SocketIOServer } from 'socket.io';
+import { homedir } from 'os';
 import { agentManager } from './src/lib/agent-manager';
 import { sessionManager } from './src/lib/session-manager';
 import { checkpointManager } from './src/lib/checkpoint-manager';
@@ -65,20 +66,170 @@ app.prepare().then(async () => {
     // Start new attempt
     socket.on(
       'attempt:start',
-      async (data: { taskId: string; prompt: string; displayPrompt?: string; fileIds?: string[] }) => {
-        const { taskId, prompt, displayPrompt, fileIds = [] } = data;
+      async (data: {
+        taskId: string;
+        prompt: string;
+        displayPrompt?: string;
+        fileIds?: string[];
+        force_create?: boolean;
+        projectId?: string;
+        projectName?: string;
+        taskTitle?: string;
+        projectRootPath?: string;
+      }) => {
+        const {
+          taskId,
+          prompt,
+          displayPrompt,
+          fileIds = [],
+          force_create,
+          projectId,
+          projectName,
+          taskTitle,
+          projectRootPath
+        } = data;
+
+        console.log('[Socket] attempt:start received:', {
+          taskId,
+          prompt,
+          force_create,
+          projectId,
+          projectName,
+          taskTitle,
+          projectRootPath
+        });
 
         try {
-          // Get task and project info
-          const task = await db.query.tasks.findFirst({
+          let task = await db.query.tasks.findFirst({
             where: eq(schema.tasks.id, taskId),
           });
 
+          // Handle force_create logic
+          if (force_create && !task) {
+            console.log('[Socket] Task not found, force_create=true');
+
+            if (!projectId) {
+              socket.emit('error', { message: 'projectId required' });
+              return;
+            }
+
+            // Check if project exists
+            let project = await db.query.projects.findFirst({
+              where: eq(schema.projects.id, projectId),
+            });
+
+            console.log('[Socket] Project exists?', !!project);
+
+            // Create project if it doesn't exist
+            if (!project) {
+              console.log('[Socket] Project does not exist, checking projectName...');
+              console.log('[Socket] projectName value:', projectName);
+
+              if (!projectName || projectName.trim() === '') {
+                console.log('[Socket] Project name required but not provided');
+                socket.emit('error', { message: 'projectName required' });
+                return;
+              }
+
+              // Create project directory and record
+              const { mkdir } = await import('fs/promises');
+              const { join } = await import('path');
+
+              const projectDirName = `${projectId}-${projectName}`;
+              const projectPath = projectRootPath
+                ? join(projectRootPath, projectDirName)
+                : join(homedir(), '.claude-ws', 'projects', projectDirName);
+
+              try {
+                await mkdir(projectPath, { recursive: true });
+                console.log('[Socket] Created project directory:', projectPath);
+              } catch (mkdirError: any) {
+                if (mkdirError?.code !== 'EEXIST') {
+                  console.error('[Socket] Failed to create project folder:', mkdirError);
+                  socket.emit('error', { message: 'Failed to create project folder: ' + mkdirError.message });
+                  return;
+                }
+              }
+
+              try {
+                await db.insert(schema.projects).values({
+                  id: projectId,
+                  name: projectName,
+                  path: projectPath,
+                  createdAt: Date.now(),
+                });
+                console.log('[Socket] Created project:', projectId);
+              } catch (error) {
+                console.error('[Socket] Failed to create project:', error);
+                socket.emit('error', { message: 'Failed to create project' });
+                return;
+              }
+
+              // Project created, fetch it
+              project = await db.query.projects.findFirst({
+                where: eq(schema.projects.id, projectId),
+              });
+            }
+
+            // Check taskTitle
+            if (!taskTitle || taskTitle.trim() === '') {
+              console.log('[Socket] Task title required but not provided');
+              socket.emit('error', { message: 'taskTitle required' });
+              return;
+            }
+
+            // Create task
+            const { and, desc } = await import('drizzle-orm');
+
+            // Get next position for todo status
+            const tasksInStatus = await db
+              .select()
+              .from(schema.tasks)
+              .where(
+                and(
+                  eq(schema.tasks.projectId, projectId),
+                  eq(schema.tasks.status, 'todo')
+                )
+              )
+              .orderBy(desc(schema.tasks.position))
+              .limit(1);
+
+            const position = tasksInStatus.length > 0 ? tasksInStatus[0].position + 1 : 0;
+
+            try {
+              await db.insert(schema.tasks).values({
+                id: taskId,
+                projectId,
+                title: taskTitle,
+                description: null,
+                status: 'todo',
+                position,
+                chatInit: false,
+                rewindSessionId: null,
+                rewindMessageUuid: null,
+                createdAt: Date.now(),
+                updatedAt: Date.now(),
+              });
+              console.log('[Socket] Created task:', taskId);
+
+              // Fetch the created task
+              task = await db.query.tasks.findFirst({
+                where: eq(schema.tasks.id, taskId),
+              });
+            } catch (error) {
+              console.error('[Socket] Failed to create task:', error);
+              socket.emit('error', { message: 'Failed to create task' });
+              return;
+            }
+          }
+
+          // Validate task exists
           if (!task) {
             socket.emit('error', { message: 'Task not found' });
             return;
           }
 
+          // Get project info
           const project = await db.query.projects.findFirst({
             where: eq(schema.projects.id, task.projectId),
           });

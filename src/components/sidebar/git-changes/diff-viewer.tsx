@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, X, FileCode, Plus, Minus } from 'lucide-react';
+import { Loader2, X, FileCode, Plus, Minus, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useActiveProject } from '@/hooks/use-active-project';
+import { useSidebarStore } from '@/stores/sidebar-store';
 import { cn } from '@/lib/utils';
 import hljs from 'highlight.js/lib/core';
 import typescript from 'highlight.js/lib/languages/typescript';
@@ -73,6 +74,7 @@ interface DiffLine {
 
 export function DiffViewer({ filePath, staged, onClose }: DiffViewerProps) {
   const activeProject = useActiveProject();
+  const { openTab, setEditorPosition } = useSidebarStore();
   const [diff, setDiff] = useState<GitDiff | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -154,6 +156,26 @@ export function DiffViewer({ filePath, staged, onClose }: DiffViewerProps) {
     return parseDiff(diff.diff);
   }, [diff?.diff]);
 
+  // Handle clicking on a diff line to open file at that line
+  const handleLineClick = (line: DiffLine) => {
+    // Only allow clicking on lines with actual line numbers (addition, deletion, context)
+    if (!line.lineNumber?.new && !line.lineNumber?.old) return;
+
+    // Open the file in a new tab
+    openTab(filePath);
+
+    // Set the editor position to the clicked line
+    // Prefer the new line number for additions, fall back to old for deletions
+    const lineNumber = line.lineNumber.new || line.lineNumber.old;
+    if (lineNumber) {
+      setEditorPosition({
+        lineNumber,
+        column: 0,
+        matchLength: 0
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
@@ -210,16 +232,22 @@ export function DiffViewer({ filePath, staged, onClose }: DiffViewerProps) {
                 ? highlightCode(line.content, language)
                 : line.content;
 
+              // Check if this line can be clicked (has line numbers)
+              const canClick = line.lineNumber?.new || line.lineNumber?.old;
+
               return (
                 <div
                   key={i}
                   className={cn(
-                    'flex',
+                    'flex group',
                     line.type === 'addition' && 'bg-teal-500/15',
                     line.type === 'deletion' && 'bg-red-500/15',
                     line.type === 'header' && 'bg-muted/50 text-muted-foreground',
-                    line.type === 'hunk' && 'bg-blue-500/10 text-blue-600'
+                    line.type === 'hunk' && 'bg-blue-500/10 text-blue-600',
+                    canClick && 'hover:bg-accent/30 cursor-pointer'
                   )}
+                  onClick={() => canClick && handleLineClick(line)}
+                  title={canClick ? `Click to open file at line ${line.lineNumber?.new || line.lineNumber?.old}` : undefined}
                 >
                   {/* Line number - single column */}
                   <div className="flex shrink-0 text-muted-foreground/60 select-none sticky left-0 bg-inherit z-10">
@@ -241,6 +269,10 @@ export function DiffViewer({ filePath, staged, onClose }: DiffViewerProps) {
                       line.content
                     )}
                   </pre>
+                  {/* External link icon on hover */}
+                  {canClick && (
+                    <ExternalLink className="size-3 opacity-0 group-hover:opacity-50 ml-auto shrink-0 self-center text-muted-foreground" />
+                  )}
                 </div>
               );
             })}

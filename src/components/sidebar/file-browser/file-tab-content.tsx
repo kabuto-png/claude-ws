@@ -1,11 +1,15 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, AlertCircle, File, Copy, Check, Save, Undo, Redo, Search, X } from 'lucide-react';
+import { Loader2, AlertCircle, File, Copy, Check, Save, Undo, Redo, Search, X, AtSign } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { CodeEditorWithInlineEdit } from '@/components/editor/code-editor-with-inline-edit';
 import { useSidebarStore } from '@/stores/sidebar-store';
 import { useActiveProject } from '@/hooks/use-active-project';
+import { useTaskStore } from '@/stores/task-store';
+import { useContextMentionStore } from '@/stores/context-mention-store';
+import { useProjectStore } from '@/stores/project-store';
 
 interface FileContent {
   content: string | null;
@@ -23,11 +27,15 @@ interface FileTabContentProps {
 export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
   const activeProject = useActiveProject();
   const { editorPosition, setEditorPosition, updateTabDirty } = useSidebarStore();
+  const { selectedTask, tasks, createTask, selectTask, setSelectedTask } = useTaskStore();
+  const { addFileMention, addLineMention } = useContextMentionStore();
+  const { selectedProjectIds } = useProjectStore();
 
   const [content, setContent] = useState<FileContent | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [selection, setSelection] = useState<{ startLine: number; endLine: number } | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Editor state
@@ -306,6 +314,52 @@ export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
     }
   };
 
+  // Handle attaching file to chat using context mention system
+  const handleAttachToChat = async (createNew = false) => {
+    if (!activeProject?.path) return;
+
+    try {
+      let targetTask = selectedTask;
+
+      // Create new task if requested or no task is selected
+      if (createNew || !targetTask) {
+        const projectId = selectedProjectIds[0];
+        if (!projectId) {
+          alert('No project selected');
+          return;
+        }
+
+        const fileName = filePath.split('/').pop() || filePath;
+        const newTask = await createTask(
+          projectId,
+          `Edit ${fileName}`,
+          `I want to work on ${filePath}`
+        );
+        targetTask = newTask;
+      }
+
+      // Extract filename from path
+      const fileName = filePath.split('/').pop() || filePath;
+
+      // Check if there's a text selection
+      if (selection) {
+        // Add line range mention
+        addLineMention(targetTask.id, fileName, filePath, selection.startLine, selection.endLine);
+      } else {
+        // Add entire file mention
+        addFileMention(targetTask.id, fileName, filePath);
+      }
+
+      // Select the task (if it's a new task or different task)
+      if (targetTask.id !== selectedTask?.id) {
+        selectTask(targetTask.id);
+      }
+    } catch (error) {
+      console.error('Failed to attach file:', error);
+      alert(error instanceof Error ? error.message : 'Failed to attach file to chat');
+    }
+  };
+
   const fileName = filePath.split('/').pop() || filePath;
 
   return (
@@ -379,6 +433,55 @@ export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
               <Save className="size-3" />
               Save
             </Button>
+          )}
+          {/* Attach to chat (@) button */}
+          {!content?.isBinary && content?.content !== null && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-sm"
+                  title={selection ? `Add lines L${selection.startLine}-${selection.endLine} to chat` : "Add file to chat"}
+                  className="relative"
+                >
+                  <AtSign className="size-4" />
+                  {selection && (
+                    <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-3 w-3 bg-primary text-[8px] text-primary-foreground items-center justify-center">
+                        {selection.endLine - selection.startLine + 1}
+                      </span>
+                    </span>
+                  )}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {selectedTask ? (
+                  <>
+                    <DropdownMenuItem onClick={() => handleAttachToChat(false)}>
+                      <span className="text-sm">
+                        {selection
+                          ? `Add lines L${selection.startLine}-${selection.endLine} to current chat`
+                          : 'Add file to current chat'
+                        }
+                      </span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleAttachToChat(true)}>
+                      <span className="text-sm">Create new chat</span>
+                    </DropdownMenuItem>
+                  </>
+                ) : (
+                  <DropdownMenuItem onClick={() => handleAttachToChat(true)}>
+                    <span className="text-sm">
+                      {selection
+                        ? `Create chat with lines L${selection.startLine}-${selection.endLine}`
+                        : 'Create new chat'
+                      }
+                    </span>
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
           {/* File size */}
           {content && (
@@ -499,6 +602,7 @@ export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
                 basePath={activeProject?.path}
                 enableDefinitions={true}
                 enableInlineEdit={true}
+                onSelectionChange={setSelection}
               />
             )}
           </>

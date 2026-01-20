@@ -15,7 +15,7 @@ import type { GitStatus, GitFileStatus } from '@/types';
 
 export function GitPanel() {
   const activeProject = useActiveProject();
-  const { setDiffFile } = useSidebarStore();
+  const { openDiffTab } = useSidebarStore();
   const [status, setStatus] = useState<GitStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -74,9 +74,9 @@ export function GitPanel() {
   const handleFileClick = useCallback(
     (path: string, staged: boolean) => {
       setSelectedFile(path);
-      setDiffFile(path, staged);
+      openDiffTab(path, staged);
     },
-    [setDiffFile]
+    [openDiffTab]
   );
 
   // Git operations

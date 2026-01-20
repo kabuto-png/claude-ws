@@ -9,7 +9,7 @@ import { CreateTaskDialog } from '@/components/kanban/create-task-dialog';
 import { TaskDetailPanel } from '@/components/task/task-detail-panel';
 import { SettingsDialog } from '@/components/settings/settings-dialog';
 import { SetupDialog } from '@/components/settings/setup-dialog';
-import { SidebarPanel, FileTabsPanel, DiffPreviewPanel } from '@/components/sidebar';
+import { SidebarPanel, FileTabsPanel, DiffTabsPanel } from '@/components/sidebar';
 import { RightSidebar } from '@/components/right-sidebar';
 import { ApiKeyProvider, ApiKeyDialog, useApiKeyCheck } from '@/components/auth/api-key-dialog';
 import { PluginList } from '@/components/agent-factory/plugin-list';
@@ -37,8 +37,9 @@ function KanbanApp() {
   const activeTabId = useSidebarStore((s) => s.activeTabId);
   const closeTab = useSidebarStore((s) => s.closeTab);
   const hasOpenTabs = openTabs.length > 0;
-  const diffFile = useSidebarStore((s) => s.diffFile);
-  const closeDiff = useSidebarStore((s) => s.closeDiff);
+  const diffTabs = useSidebarStore((s) => s.diffTabs);
+  const activeDiffTabId = useSidebarStore((s) => s.activeDiffTabId);
+  const closeDiffTab = useSidebarStore((s) => s.closeDiffTab);
 
   // Auto-show setup when no projects
   const autoShowSetup = !projectLoading && projects.length === 0;
@@ -132,7 +133,7 @@ function KanbanApp() {
         toggleSidebar();
       }
       // Escape: Close tabs/panels in priority order
-      // Priority: file tab > diff panel > task detail > sidebar
+      // Priority: file tab > diff tab > task detail > sidebar
       // Note: Cmd+W cannot be overridden in browsers, so we use Escape instead
       if (e.key === 'Escape') {
         // 1. Close active file tab if any
@@ -141,9 +142,9 @@ function KanbanApp() {
           return;
         }
 
-        // 2. Close diff panel if open
-        if (diffFile) {
-          closeDiff();
+        // 2. Close active diff tab if any
+        if (activeDiffTabId && diffTabs.length > 0) {
+          closeDiffTab(activeDiffTabId);
           return;
         }
 
@@ -163,7 +164,7 @@ function KanbanApp() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedTask, toggleSidebar, activeTabId, openTabs, handleCloseTab, diffFile, closeDiff, isOpen, setIsOpen, setSelectedTask]);
+  }, [selectedTask, toggleSidebar, activeTabId, openTabs, handleCloseTab, activeDiffTabId, diffTabs, closeDiffTab, isOpen, setIsOpen, setSelectedTask]);
 
   if (projectLoading) {
     return (
@@ -188,8 +189,8 @@ function KanbanApp() {
         {/* File tabs panel - in flow */}
         <FileTabsPanel />
 
-        {/* Diff preview panel - in flow */}
-        <DiffPreviewPanel />
+        {/* Diff tabs panel - in flow */}
+        <DiffTabsPanel />
 
         {/* Main content - Kanban board (fills remaining space) */}
         <main className="flex-1 overflow-auto min-w-0">

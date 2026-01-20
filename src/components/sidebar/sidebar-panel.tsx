@@ -79,11 +79,27 @@ export function SidebarPanel({ className }: SidebarPanelProps) {
         className="flex-1 flex flex-col min-h-0"
       >
         <TabsList className="grid w-full grid-cols-2 h-9 mx-2 mt-2" style={{ width: 'calc(100% - 16px)' }}>
-          <TabsTrigger value="files" className="text-xs gap-1.5">
+          <TabsTrigger
+            value="files"
+            className="text-xs gap-1.5"
+            onMouseUp={(e) => {
+              if (e.button === 1) { // Middle click
+                setIsOpen(false);
+              }
+            }}
+          >
             <FolderTree className="size-3.5" />
             Files
           </TabsTrigger>
-          <TabsTrigger value="git" className="text-xs gap-1.5">
+          <TabsTrigger
+            value="git"
+            className="text-xs gap-1.5"
+            onMouseUp={(e) => {
+              if (e.button === 1) { // Middle click
+                setIsOpen(false);
+              }
+            }}
+          >
             <GitBranch className="size-3.5" />
             Git
           </TabsTrigger>

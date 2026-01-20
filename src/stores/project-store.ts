@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type { Project } from '@/types';
 import { useTaskStore } from './task-store';
 import { useInteractiveCommandStore } from './interactive-command-store';
+import { useSidebarStore } from './sidebar-store';
 
 interface ProjectState {
   projects: Project[];
@@ -89,6 +90,12 @@ export const useProjectStore = create<ProjectStore>()(
         // Close chat window and interactive commands when project selection changes
         useTaskStore.getState().selectTask(null);
         useInteractiveCommandStore.getState().closeCommand();
+
+        // Close file explorer and all open editor tabs
+        const sidebarStore = useSidebarStore.getState();
+        sidebarStore.setIsOpen(false);
+        sidebarStore.closeAllTabs();
+        sidebarStore.closeAllDiffTabs();
       },
 
       setSelectedProjectIds: (ids) => {
@@ -98,6 +105,12 @@ export const useProjectStore = create<ProjectStore>()(
         // Close chat window and interactive commands when project selection changes
         useTaskStore.getState().selectTask(null);
         useInteractiveCommandStore.getState().closeCommand();
+
+        // Close file explorer and all open editor tabs
+        const sidebarStore = useSidebarStore.getState();
+        sidebarStore.setIsOpen(false);
+        sidebarStore.closeAllTabs();
+        sidebarStore.closeAllDiffTabs();
       },
 
       selectAllProjects: () => {
