@@ -322,6 +322,33 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
     }
   };
 
+  // Handle paste event for images
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    if (!taskId) return;
+
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageFiles: File[] = [];
+
+    // Check for image files in clipboard
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          imageFiles.push(file);
+        }
+      }
+    }
+
+    // If images found, prevent default paste and upload them
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      await handleFilesSelected(imageFiles);
+    }
+  };
+
   // Handle input change - check for @ mentions
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newValue = e.target.value;
@@ -457,6 +484,7 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
                 value={prompt}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
                 onFocus={() => {
                   // Set cursor position on focus (removed scrollIntoView to prevent layout shift)
                   setTimeout(() => {
@@ -551,6 +579,10 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
                 <span className="flex items-center gap-1">
                   <kbd className="px-1 py-0.5 bg-muted rounded text-[9px] font-mono">@</kbd>
                   <span>files</span>
+                </span>
+                <span className="flex items-center gap-1">
+                  <kbd className="px-1 py-0.5 bg-muted rounded text-[9px] font-mono">⌘V</kbd>
+                  <span>paste image</span>
                 </span>
               </div>
 
