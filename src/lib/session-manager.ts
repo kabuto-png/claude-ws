@@ -8,7 +8,7 @@
  */
 
 import { db, schema } from './db';
-import { eq, desc, and } from 'drizzle-orm';
+import { eq, desc, and, inArray } from 'drizzle-orm';
 
 export interface SessionOptions {
   resume?: string;
@@ -29,17 +29,19 @@ export class SessionManager {
 
   /**
    * Get the last session ID for a task (for resume)
-   * Only returns sessions from SUCCESSFUL attempts - failed attempts may have corrupted sessions
+   * Returns sessions from completed or cancelled attempts
+   * Cancelled attempts have valid sessions - user just stopped the work
+   * Only 'failed' attempts (errors) may have corrupted sessions
    */
   async getLastSessionId(taskId: string): Promise<string | null> {
-    const lastSuccessfulAttempt = await db.query.attempts.findFirst({
+    const lastResumableAttempt = await db.query.attempts.findFirst({
       where: and(
         eq(schema.attempts.taskId, taskId),
-        eq(schema.attempts.status, 'completed')
+        inArray(schema.attempts.status, ['completed', 'cancelled'])
       ),
       orderBy: [desc(schema.attempts.createdAt)],
     });
-    return lastSuccessfulAttempt?.sessionId ?? null;
+    return lastResumableAttempt?.sessionId ?? null;
   }
 
   /**

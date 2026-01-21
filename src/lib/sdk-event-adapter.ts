@@ -163,6 +163,9 @@ const BACKGROUND_COMMAND_PATTERNS = [
   /yarn\s+(dev|start|serve|watch)/i,
   /pnpm\s+(dev|start|serve|watch)/i,
   /bun\s+(run\s+)?(dev|start|serve|watch)/i,
+  // npx commands that start servers
+  /npx\s+.*\s+start/i,
+  /npx\s+(directus|strapi|payload|keystone|medusa)\b/i,
   // Direct node/python servers
   /node\s+.*server/i,
   /python\s+.*server/i,
@@ -175,6 +178,9 @@ const BACKGROUND_COMMAND_PATTERNS = [
   /astro\s+dev/i,
   /ng\s+serve/i,
   /vue-cli-service\s+serve/i,
+  // CMS/Backend CLIs
+  /directus\s+(start|dev)/i,
+  /strapi\s+(start|dev)/i,
   // Other common patterns
   /nodemon/i,
   /ts-node-dev/i,

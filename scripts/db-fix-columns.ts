@@ -9,9 +9,8 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
-import os from 'os';
 
-const DB_DIR = path.join(os.homedir(), '.claude-ws');
+const DB_DIR = path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DB_DIR, 'claude-ws.db');
 
 if (!fs.existsSync(DB_PATH)) {

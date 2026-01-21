@@ -138,7 +138,7 @@ app.prepare().then(async () => {
               const projectDirName = `${projectId}-${projectName}`;
               const projectPath = projectRootPath
                 ? join(projectRootPath, projectDirName)
-                : join(homedir(), '.claude-ws', 'projects', projectDirName);
+                : join(process.cwd(), 'data', 'projects', projectDirName);
 
               try {
                 await mkdir(projectPath, { recursive: true });
@@ -592,39 +592,31 @@ app.prepare().then(async () => {
   });
 
   // Handle background shell detection from AgentManager (Bash with run_in_background=true)
+  // NOTE: SDK spawns process but it dies when conversation ends.
+  // We spawn our own detached shell that survives.
+  // The command should kill existing processes first to avoid port conflicts.
   agentManager.on('backgroundShell', async ({ attemptId, shell }) => {
     console.log(`[Server] Background shell detected for ${attemptId}: ${shell.command}`);
 
     try {
-      // Get attempt to find project info
       const attempt = await db.query.attempts.findFirst({
         where: eq(schema.attempts.id, attemptId),
       });
-
-      if (!attempt) {
-        console.error(`[Server] Attempt ${attemptId} not found for background shell`);
-        return;
-      }
+      if (!attempt) return;
 
       const task = await db.query.tasks.findFirst({
         where: eq(schema.tasks.id, attempt.taskId),
       });
-
-      if (!task) {
-        console.error(`[Server] Task not found for attempt ${attemptId}`);
-        return;
-      }
+      if (!task) return;
 
       const project = await db.query.projects.findFirst({
         where: eq(schema.projects.id, task.projectId),
       });
+      if (!project) return;
 
-      if (!project) {
-        console.error(`[Server] Project not found for task ${task.id}`);
-        return;
-      }
+      // Add delay to let SDK's process start first, then our kill command takes over
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
-      // Spawn the shell using ShellManager
       const shellId = shellManager.spawn({
         projectId: project.id,
         attemptId,
@@ -633,7 +625,6 @@ app.prepare().then(async () => {
         description: shell.description,
       });
 
-      // Save to database
       await db.insert(schema.shells).values({
         id: shellId,
         projectId: project.id,
@@ -650,10 +641,89 @@ app.prepare().then(async () => {
     }
   });
 
-  agentManager.on('exit', async ({ attemptId, code }) => {
-    const status: AttemptStatus = code === 0 ? 'completed' : 'failed';
+  // Handle tracked process from BGPID pattern in bash output
+  // Kill the nohup'd process and respawn via ShellManager for realtime streaming
+  agentManager.on('trackedProcess', async ({ attemptId, pid, command }) => {
+    console.log(`[Server] Tracked process detected for ${attemptId}: PID ${pid}`);
 
-    // Get attempt to retrieve taskId for global event
+    try {
+      const attempt = await db.query.attempts.findFirst({
+        where: eq(schema.attempts.id, attemptId),
+      });
+
+      if (!attempt) {
+        console.error(`[Server] Cannot track process: attempt not found`);
+        return;
+      }
+
+      const task = await db.query.tasks.findFirst({
+        where: eq(schema.tasks.id, attempt.taskId),
+      });
+
+      if (!task) {
+        console.error(`[Server] Cannot track process: task not found`);
+        return;
+      }
+
+      const project = await db.query.projects.findFirst({
+        where: eq(schema.projects.id, task.projectId),
+      });
+
+      if (!project) {
+        console.error(`[Server] Cannot track process: project not found`);
+        return;
+      }
+
+      // Kill the nohup'd process - we'll respawn via ShellManager for realtime streaming
+      try {
+        process.kill(pid, 'SIGTERM');
+        console.log(`[Server] Killed nohup'd process ${pid}`);
+      } catch {
+        console.log(`[Server] Process ${pid} already dead or not killable`);
+      }
+
+      // Extract actual command from nohup wrapper
+      // Pattern: "nohup <command> > /tmp/xxx.log 2>&1 & echo ..."
+      // or: "kill ...; sleep ...; nohup <command> > ..."
+      let actualCommand = command;
+      const nohupMatch = command.match(/nohup\s+(.+?)\s*>\s*\/tmp\//);
+      if (nohupMatch) {
+        actualCommand = nohupMatch[1].trim();
+      }
+      console.log(`[Server] Extracted command: ${actualCommand}`);
+
+      // Wait for port to be released
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Spawn via ShellManager for realtime stdout/stderr capture
+      const shellId = shellManager.spawn({
+        projectId: project.id,
+        attemptId,
+        command: actualCommand,
+        cwd: project.path,
+        description: `Background: ${actualCommand.substring(0, 50)}`,
+      });
+
+      // Save to database for persistence
+      const shellInfo = shellManager.getShellInfo(shellId);
+      await db.insert(schema.shells).values({
+        id: shellId,
+        projectId: project.id,
+        attemptId,
+        command: actualCommand,
+        cwd: project.path,
+        pid: shellInfo?.pid || null,
+        status: 'running',
+      });
+
+      console.log(`[Server] Tracked external process ${shellId} (PID ${pid}) for project ${project.id}`);
+    } catch (error) {
+      console.error(`[Server] Failed to track process:`, error);
+    }
+  });
+
+  agentManager.on('exit', async ({ attemptId, code }) => {
+    // Get attempt to retrieve taskId and current status
     const attempt = await db.query.attempts.findFirst({
       where: eq(schema.attempts.id, attemptId),
     });
@@ -662,6 +732,12 @@ app.prepare().then(async () => {
       console.error(`[Server] Attempt ${attemptId} not found`);
       return;
     }
+
+    // Preserve 'cancelled' status - don't overwrite if user cancelled
+    // The cancel handler already set the correct status
+    const status: AttemptStatus = attempt.status === 'cancelled'
+      ? 'cancelled'
+      : (code === 0 ? 'completed' : 'failed');
 
     // Get usage stats from tracker
     const usageStats = usageTracker.getUsage(attemptId);
