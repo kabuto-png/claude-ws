@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       const projectDirName = `${projectId}-${projectName}`;
       const projectPath = projectRootPath
         ? join(projectRootPath, projectDirName)
-        : join(homedir(), '.claude-ws', 'projects', projectDirName);
+        : join(process.cwd(), 'data', 'projects', projectDirName);
 
       // Create the project folder
       try {

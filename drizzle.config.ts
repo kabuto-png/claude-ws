@@ -1,10 +1,9 @@
 import type { Config } from 'drizzle-kit';
 import path from 'path';
-import os from 'os';
 import fs from 'fs';
 
-// Database location in user's home directory for persistence
-const DB_DIR = path.join(os.homedir(), '.claude-ws');
+// Database location in project directory for multi-instance support
+const DB_DIR = path.join(process.cwd(), 'data');
 const DB_PATH = path.join(DB_DIR, 'claude-ws.db');
 
 // Ensure directory exists before drizzle-kit tries to connect
