@@ -9,9 +9,12 @@ const GIT_TIMEOUT = 10000;
 
 // POST /api/git/branch - Create a new branch from a commit
 export async function POST(request: NextRequest) {
+  let branchName: string | undefined;
+
   try {
     const body = await request.json();
-    const { projectPath, branchName, startPoint, checkout } = body;
+    const { projectPath, branchName: branchNameFromBody, startPoint, checkout } = body;
+    branchName = branchNameFromBody;
 
     if (!projectPath || !branchName) {
       return NextResponse.json(
@@ -107,7 +110,7 @@ export async function POST(request: NextRequest) {
     // Check if branch already exists
     if (err.stderr?.includes('already exists')) {
       return NextResponse.json(
-        { error: `Branch '${branchName}' already exists` },
+        { error: branchName ? `Branch '${branchName}' already exists` : 'Branch already exists' },
         { status: 409 }
       );
     }
