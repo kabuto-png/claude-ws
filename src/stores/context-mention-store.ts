@@ -130,7 +130,7 @@ export const useContextMentionStore = create<ContextMentionState>((set, get) => 
       return { finalPrompt: prompt, displayPrompt: prompt };
     }
 
-    // Build full path references for Claude
+    // Build full path references for Claude and display
     const fileRefs = mentions.map(m => {
       if (m.type === 'lines') {
         const lineRange = m.startLine === m.endLine ? `L${m.startLine}` : `L${m.startLine}-${m.endLine}`;
@@ -139,8 +139,8 @@ export const useContextMentionStore = create<ContextMentionState>((set, get) => 
       return `@${m.filePath}`;
     }).join(' ');
 
-    // Build display references (short names)
-    const displayRefs = mentions.map(m => m.displayName).join(' ');
+    // Use full paths for both Claude and display
+    const displayRefs = fileRefs;
 
     return {
       finalPrompt: `${fileRefs} ${prompt}`.trim(),

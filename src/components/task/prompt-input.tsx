@@ -278,12 +278,12 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
 
     onSubmit(finalPrompt, displayPrompt, fileIds.length > 0 ? fileIds : undefined);
 
-    // Clear state
+    // Clear state - but keep mentions for persistent file references
     updatePrompt('');
     setSelectedCommand(null);
     setShowCommands(false);
     if (taskId) {
-      clearMentions(taskId);
+      // Only clear uploaded files, keep context mentions
       clearFiles(taskId);
     }
   };
@@ -404,15 +404,15 @@ export const PromptInput = forwardRef<PromptInputRef, PromptInputProps>(({
             {mentions.map((mention) => (
               <div
                 key={mention.displayName}
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-muted/80 rounded text-xs group"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-muted/80 rounded text-xs group max-w-full"
                 title={mention.type === 'lines' ? `${mention.filePath}#L${mention.startLine}-${mention.endLine}` : mention.filePath}
               >
-                <FileIcon name={mention.fileName} type="file" className="size-3" />
-                <span className="text-foreground">{mention.displayName}</span>
+                <FileIcon name={mention.fileName} type="file" className="size-3 shrink-0" />
+                <span className="text-foreground truncate">{mention.type === 'lines' ? `@${mention.filePath}#L${mention.startLine}-${mention.endLine}` : `@${mention.filePath}`}</span>
                 <button
                   type="button"
                   onClick={() => handleRemoveMention(mention.displayName)}
-                  className="text-muted-foreground hover:text-foreground opacity-60 group-hover:opacity-100 transition-opacity"
+                  className="text-muted-foreground hover:text-foreground opacity-60 group-hover:opacity-100 transition-opacity shrink-0"
                 >
                   <X className="size-3" />
                 </button>
