@@ -44,7 +44,6 @@ coverage/
 *.db
 *.db-shm
 *.db-wal
-drizzle/
 
 # Git
 .git/

@@ -55,7 +55,6 @@ next-env.d.ts
 *.db-journal
 *.db-shm
 *.db-wal
-/drizzle/
 
 # build artifacts
 *.tgz
