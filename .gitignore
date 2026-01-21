@@ -60,3 +60,8 @@ next-env.d.ts
 *.tgz
 /dist/
 /.turbo/
+
+# PM2 logs
+/logs/
+*.log
+.pm2/

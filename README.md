@@ -225,6 +225,41 @@ npm install -g claude-ws@latest
 | `pnpm start` | Start production server |
 | `pnpm lint` | Run ESLint |
 | `pnpm db:migrate` | Run database migrations |
+| `pnpm pm2:start` | Start with PM2 process manager |
+| `pnpm pm2:stop` | Stop PM2 process |
+| `pnpm pm2:restart` | Restart PM2 process |
+| `pnpm pm2:logs` | View PM2 logs |
+| `pnpm pm2:monit` | Monitor PM2 process |
+
+### Running with PM2
+
+For production deployments with auto-restart and process management:
+
+```bash
+# Install PM2 globally (if not already installed)
+npm install -g pm2
+
+# Start the server
+pnpm pm2:start
+
+# View logs
+pnpm pm2:logs
+
+# Monitor process
+pnpm pm2:monit
+
+# Restart
+pnpm pm2:restart
+
+# Stop
+pnpm pm2:stop
+```
+
+PM2 Features:
+- Auto-restart on crash (max 10 attempts)
+- Memory limit monitoring (500MB)
+- Log rotation and management
+- Process status tracking
 
 ---
 
