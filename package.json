@@ -65,7 +65,7 @@
     "db:generate": "drizzle-kit generate",
     "db:fix": "tsx scripts/db-fix-columns.ts",
     "db:migrate:fresh": "drizzle-kit migrate",
-    "pm2:start": "pm2 start ecosystem.config.cjs",
+    "pm2:start": "pnpm build && pm2 start ecosystem.config.cjs",
     "pm2:stop": "pm2 stop claude-ws",
     "pm2:restart": "pm2 restart claude-ws",
     "pm2:delete": "pm2 delete claude-ws",
