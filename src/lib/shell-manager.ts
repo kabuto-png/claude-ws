@@ -7,6 +7,7 @@
 
 import { EventEmitter } from 'events';
 import { spawn, type ChildProcess } from 'child_process';
+import { readFileSync, existsSync } from 'fs';
 import { nanoid } from 'nanoid';
 import { createLogBuffer, type LogBuffer, type LogEntry } from './circular-buffer';
 
@@ -23,6 +24,7 @@ export interface ShellInstance {
   startedAt: number;
   exitCode: number | null;
   exitSignal: string | null;
+  logFile?: string; // For external processes, output goes to this file
 }
 
 interface ShellEvents {
@@ -180,28 +182,30 @@ class ShellManager extends EventEmitter {
       return false;
     }
 
-    console.log(`[ShellManager] Stopping shell ${shellId} (PID ${instance.pid}) with ${signal}`);
+    // External processes (tracked via BGPID) aren't process group leaders
+    // Use direct PID kill for them, process group kill (-pid) for our spawned shells
+    const isExternalProcess = !instance.process;
+    const killTarget = isExternalProcess ? instance.pid : -instance.pid;
+
+    console.log(`[ShellManager] Stopping shell ${shellId} (PID ${instance.pid}, external: ${isExternalProcess}) with ${signal}`);
 
     try {
-      // Kill entire process group using negative PID
-      // detached: true makes the shell a process group leader
-      // Killing -pid sends signal to all processes in that group
-      process.kill(-instance.pid, signal);
+      process.kill(killTarget, signal);
 
       // Force kill after 5 seconds if still running
       setTimeout(() => {
-        if (instance.exitCode === null) {
+        if (instance.exitCode === null && this.isPidAlive(instance.pid)) {
           console.log(`[ShellManager] Force killing shell ${shellId}`);
           try {
-            process.kill(-instance.pid, 'SIGKILL');
+            process.kill(killTarget, 'SIGKILL');
           } catch {
             // Process might already be dead
           }
         }
       }, 5000);
 
-      // For restored shells, manually emit exit event since we can't listen to process events
-      if (!instance.process) {
+      // For external/restored shells, manually emit exit event since we can't listen to process events
+      if (isExternalProcess) {
         // Check if process actually died
         setTimeout(() => {
           if (!this.isPidAlive(instance.pid)) {
@@ -275,10 +279,27 @@ class ShellManager extends EventEmitter {
 
   /**
    * Get recent logs from a shell
+   * For external processes with logFile, reads from the file
    */
   getRecentLogs(shellId: string, lines: number = 100): LogEntry[] {
     const shell = this.shells.get(shellId);
     if (!shell) return [];
+
+    // For external processes, try reading from log file
+    if (shell.logFile && existsSync(shell.logFile)) {
+      try {
+        const content = readFileSync(shell.logFile, 'utf-8');
+        const logLines = content.split('\n').slice(-lines);
+        return logLines.map(line => ({
+          type: 'stdout' as const,
+          content: line,
+          timestamp: Date.now(),
+        }));
+      } catch (err) {
+        console.warn(`[ShellManager] Failed to read log file ${shell.logFile}:`, err);
+      }
+    }
+
     return shell.logBuffer.getLast(lines);
   }
 
@@ -332,6 +353,81 @@ class ShellManager extends EventEmitter {
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Track an external process by PID (e.g., from nohup background command)
+   * Used when Claude spawns processes via bash that we want to track/kill
+   */
+  trackExternalProcess(options: {
+    projectId: string;
+    attemptId: string;
+    command: string;
+    cwd: string;
+    pid: number;
+    logFile?: string;
+  }): string | null {
+    const { projectId, attemptId, command, cwd, pid, logFile } = options;
+
+    // Verify PID is alive
+    if (!this.isPidAlive(pid)) {
+      console.log(`[ShellManager] Cannot track PID ${pid}: not running`);
+      return null;
+    }
+
+    const shellId = nanoid();
+    console.log(`[ShellManager] Tracking external process ${shellId} with PID ${pid}`);
+
+    const instance: ShellInstance = {
+      shellId,
+      projectId,
+      attemptId,
+      command,
+      args: ['-c', command],
+      cwd,
+      process: null as unknown as ChildProcess, // External process
+      pid,
+      logBuffer: createLogBuffer(1000),
+      startedAt: Date.now(),
+      exitCode: null,
+      exitSignal: null,
+      logFile, // Store log file path for later reading
+    };
+
+    this.shells.set(shellId, instance);
+
+    // Emit started event
+    this.emit('started', { shellId, projectId, pid, command });
+
+    // Start monitoring process
+    this.monitorExternalProcess(shellId, pid);
+
+    return shellId;
+  }
+
+  /**
+   * Monitor an external process and emit exit when it dies
+   */
+  private monitorExternalProcess(shellId: string, pid: number): void {
+    const checkInterval = setInterval(() => {
+      const instance = this.shells.get(shellId);
+      if (!instance || instance.exitCode !== null) {
+        clearInterval(checkInterval);
+        return;
+      }
+
+      if (!this.isPidAlive(pid)) {
+        console.log(`[ShellManager] External process ${shellId} (PID ${pid}) has exited`);
+        instance.exitCode = 0; // Assume clean exit
+        this.emit('exit', {
+          shellId,
+          projectId: instance.projectId,
+          code: 0,
+          signal: null,
+        });
+        clearInterval(checkInterval);
+      }
+    }, 5000); // Check every 5 seconds
   }
 
   /**

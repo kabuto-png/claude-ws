@@ -44,6 +44,7 @@ interface AgentEvents {
   exit: (data: { attemptId: string; code: number | null }) => void;
   question: (data: { attemptId: string; toolUseId: string; questions: unknown[] }) => void;
   backgroundShell: (data: { attemptId: string; shell: BackgroundShellInfo }) => void;
+  trackedProcess: (data: { attemptId: string; pid: number; command: string; logFile?: string }) => void;
 }
 
 export interface AgentStartOptions {
@@ -64,6 +65,8 @@ export interface AgentStartOptions {
 class AgentManager extends EventEmitter {
   private agents = new Map<string, AgentInstance>();
   private pendingQuestions = new Map<string, PendingQuestion>();
+  // Track Bash tool_use commands to correlate with BGPID results
+  private pendingBashCommands = new Map<string, { command: string; attemptId: string }>();
 
   constructor() {
     super();
@@ -228,8 +231,9 @@ class AgentManager extends EventEmitter {
           }
 
           // Track subagent workflow (from assistant messages with Task tool)
+          // Also track Bash tool_uses to correlate with BGPID results
           if (message.type === 'assistant' && 'message' in message) {
-            const assistantMsg = message as { message: { content: Array<{ type: string; id?: string; name?: string }> }; parent_tool_use_id: string | null };
+            const assistantMsg = message as { message: { content: Array<{ type: string; id?: string; name?: string; input?: unknown }> }; parent_tool_use_id: string | null };
             for (const block of assistantMsg.message.content) {
               if (block.type === 'tool_use' && block.name === 'Task' && block.id) {
                 const taskInput = (block as { input?: { subagent_type?: string } }).input;
@@ -242,16 +246,43 @@ class AgentManager extends EventEmitter {
                   assistantMsg.parent_tool_use_id
                 );
               }
+              // Track Bash tool_uses for BGPID correlation
+              if (block.type === 'tool_use' && block.name === 'Bash' && block.id) {
+                const bashInput = block.input as { command?: string } | undefined;
+                if (bashInput?.command) {
+                  const toolId = block.id;
+                  this.pendingBashCommands.set(toolId, { command: bashInput.command, attemptId });
+                  // Clean up old entries after 5 minutes
+                  setTimeout(() => this.pendingBashCommands.delete(toolId), 5 * 60 * 1000);
+                }
+              }
             }
           }
 
-          // Track subagent completion (from user messages with tool_result)
+          // Track subagent completion and detect BGPID patterns (from user messages with tool_result)
           if (message.type === 'user' && 'message' in message) {
-            const userMsg = message as { message: { content: Array<{ type: string; tool_use_id?: string; is_error?: boolean }> } };
+            const userMsg = message as { message: { content: Array<{ type: string; tool_use_id?: string; is_error?: boolean; content?: string | unknown[] }> } };
             for (const block of userMsg.message.content) {
               if (block.type === 'tool_result' && block.tool_use_id) {
                 const success = !block.is_error;
                 workflowTracker.trackSubagentEnd(attemptId, block.tool_use_id, success);
+
+                // Detect BGPID pattern in tool result content (from nohup background commands)
+                const content = typeof block.content === 'string' ? block.content : '';
+                const bgpidMatch = content.match(/BGPID:(\d+)/);
+                if (bgpidMatch && block.tool_use_id) {
+                  const pid = parseInt(bgpidMatch[1], 10);
+                  // Look up original command from tracked Bash tool_uses
+                  const bashInfo = this.pendingBashCommands.get(block.tool_use_id);
+                  const command = bashInfo?.command || `Background process (PID: ${pid})`;
+                  // Try to extract log file path from command
+                  const logMatch = command.match(/>\s*([^\s]+\.log)/);
+                  const logFile = logMatch ? logMatch[1] : undefined;
+                  console.log(`[AgentManager] Background process detected: PID ${pid}, command: ${command.substring(0, 50)}...`);
+                  this.emit('trackedProcess', { attemptId, pid, command, logFile });
+                  // Clean up
+                  this.pendingBashCommands.delete(block.tool_use_id);
+                }
               }
             }
           }

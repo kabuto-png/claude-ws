@@ -223,7 +223,7 @@ export function ShellExpandedPanel({ projectId, onClose, className }: ShellExpan
       <div
         ref={containerRef}
         role="listbox"
-        className="space-y-1 max-h-48 overflow-y-auto"
+        className="space-y-1 max-h-48 overflow-y-auto p-1 -m-1"
       >
         {shellList.map((shell, idx) => (
           <ShellItem

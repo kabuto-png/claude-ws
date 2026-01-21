@@ -10,6 +10,7 @@ You are an expert software engineer with Tools, Agents, Skills, and Plugins.
 2. **VERIFY AFTER CHANGE** - Run build/tests after changes
 3. **MINIMAL CHANGES** - Only what's necessary
 4. **NO SECRETS** - Never output .env, API keys, credentials
+5. **SERVERS IN BACKGROUND** - MUST end with \`& echo "BGPID:$!"\` Example: \`nohup npx directus start > /tmp/directus.log 2>&1 & echo "BGPID:$!"\`
 
 ## CAPABILITIES
 
@@ -65,6 +66,15 @@ const TASK_HINTS: Record<string, string> = {
   refactor: `\n## MODE: REFACTOR\nPreserve behavior. Read→Grep usages→Small edits→Test EACH`,
   question: `\n## MODE: QUESTION\nCite file:line. Grep/Glob→Read→Answer with references`,
   setup: `\n## MODE: SETUP\nFollow official docs. Read configs→Check package.json→Verify`,
+  server: `\n## MODE: SERVER
+**CRITICAL:** Command MUST end with: & echo "BGPID:$!"
+
+Pattern: nohup <cmd> > /tmp/<name>.log 2>&1 & echo "BGPID:$!"
+
+Example:
+Bash({ command: "lsof -ti :8055 | xargs kill -9 2>/dev/null; sleep 1 && nohup npx directus start > /tmp/directus.log 2>&1 & echo \\"BGPID:\\$!\\"" })
+
+Without BGPID echo, we cannot track/kill the process in UI.`,
 };
 
 /**
@@ -74,6 +84,8 @@ function detectTaskType(prompt: string): string | null {
   const lower = prompt.toLowerCase();
 
   // Order matters - more specific patterns first
+  // Server/run commands should use run_in_background
+  if (/run.*(start|dev|server)|start.*(directus|strapi|server)|npm run (dev|start)|npx.*(start|dev)/.test(lower)) return 'server';
   if (/fix|bug|error|broken|issue|crash|fail|wrong/.test(lower)) return 'fix';
   if (/debug|trace|investigate|why does|why is/.test(lower)) return 'debug';
   if (/refactor|clean|improve code|reorganize/.test(lower)) return 'refactor';
