@@ -8,19 +8,6 @@ Local-first SQLite database. Real-time streaming. Plugin system for custom agent
 
 ---
 
-## Screenshots
-
-### Desktop
-
-![Desktop Review 0](/public/desktop-review-0.jpeg)
-![Desktop Review 1](/public/desktop-review-1.jpeg)
-
-### Mobile
-
-![Mobile Review](/public/mobile-review-0.jpg)
-
----
-
 ## Why Claude Workspace?
 
 | Feature | Benefit |

@@ -37,3 +37,11 @@ Dont try start run dev when finish a conversation only when you are asked to.
 - The `scripts/check-dependencies.sh` script validates this rule before builds
 
 **Why:** When users install this package via npm, devDependencies are not installed. Any production code importing from devDependencies will fail at runtime.
+
+## Language Rule
+
+**Always respond in English, regardless of the user's input language.**
+
+- All responses must be in English
+- All code changes, comments, and documentation must be in English
+- Even if the user communicates in another language, respond in English
