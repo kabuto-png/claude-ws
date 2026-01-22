@@ -85,7 +85,7 @@ export function Header({ onCreateTask, onOpenSettings, onAddProject }: HeaderPro
           <Image src="/logo.svg" alt="Claude Workspace" width={28} height={28} className="sm:hidden" unoptimized />
           <Image src="/logo.svg" alt="Claude Workspace" width={32} height={32} className="hidden sm:block" unoptimized />
           <span className="hidden sm:inline font-mono text-base font-bold tracking-tight">
-            CLAUDE.WS
+            CLAUDE<span style={{ color: '#d87756' }}>.</span>WS
           </span>
         </div>
 
