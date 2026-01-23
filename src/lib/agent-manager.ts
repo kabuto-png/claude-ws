@@ -153,6 +153,17 @@ class AgentManager extends EventEmitter {
         cwd: projectPath,
         model: DEFAULT_MODEL, // 'opus' - proxy API will handle mapping
         permissionMode: 'bypassPermissions' as const,
+        // Enable skill loading from filesystem (~/.claude/skills/ and .claude/skills/)
+        settingSources: ['user', 'project'] as ('user' | 'project')[],
+        // Enable Skill tool for skill invocation
+        allowedTools: [
+          'Skill',           // Required for skill invocation
+          'Task',            // Subagent workflows
+          'Read', 'Write', 'Edit', 'NotebookEdit',
+          'Bash', 'Grep', 'Glob',
+          'WebFetch', 'WebSearch',
+          'TodoWrite', 'AskUserQuestion',
+        ],
         ...(sessionOptions?.resume ? { resume: sessionOptions.resume } : {}),
         ...(sessionOptions?.resumeSessionAt ? { resumeSessionAt: sessionOptions.resumeSessionAt } : {}),
         ...checkpointOptions,
