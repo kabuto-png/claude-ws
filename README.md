@@ -16,36 +16,7 @@ npm run dev
 ```
 
 ### 📖 Interactive API Documentation
-Open **[docs/swagger/INDEX.html](docs/swagger/INDEX.html)** in your browser for a beautiful visual interface to all documentation.
-
-### 📘 Complete API Reference
-See **[docs/swagger/COMPLETE_API_LIST.md](docs/swagger/COMPLETE_API_LIST.md)** for comprehensive documentation of all 67 API endpoints.
-
-## 📊 API Overview
-
-- **Total Endpoints**: 67
-- **Categories**: 15
-- **Format**: OpenAPI 3.0 (YAML)
-
-## 🗂️ API Categories
-
-| Category | Endpoints | Description |
-|----------|-----------|-------------|
-| Agent Factory | 24 | Component discovery and plugin management |
-| Git | 16 | Git repository operations |
-| Tasks | 11 | Task and conversation management |
-| Projects | 7 | Project and settings management |
-| Attempts | 5 | Task execution attempts |
-| Files | 4 | File system operations |
-| Uploads | 3 | File upload handling |
-| Checkpoints | 3 | Conversation state management |
-| Commands | 3 | Claude Code slash commands |
-| Code | 2 | Inline code editing |
-| Search | 2 | File and content search |
-| Language | 2 | Definition resolution (goto-definition) |
-| Filesystem | 1 | Directory browsing |
-| Shells | 1 | Shell command execution |
-| Auth | 1 | API key verification |
+Open **[public/docs/swagger/INDEX.html](public/docs/swagger/api-docs.html)** in your browser for a beautiful visual interface to all documentation.
 
 ## 📁 Documentation Files
 
