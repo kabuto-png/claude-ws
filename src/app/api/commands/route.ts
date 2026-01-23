@@ -132,26 +132,39 @@ function scanSkillsDir(dir: string): CommandInfo[] {
 }
 
 // GET /api/commands - List available Claude commands (flat list)
-export async function GET() {
+// Query params: projectPath - optional project path to scan for project-level skills
+export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const projectPath = searchParams.get('projectPath');
+
     const claudeHomeDir = getClaudeHomeDir();
 
     // Scan commands directory
     const commandsDir = join(homedir(), '.claude', 'commands');
     const userCommands = scanCommandsDir(commandsDir);
 
-    // Scan skills directories
+    // Scan skills directories (user-level)
     const skillsDirs = [
       join(claudeHomeDir, 'skills'),           // ~/.claude/skills/
       join(claudeHomeDir, 'agent-factory', 'skills'), // ~/.claude/agent-factory/skills/
     ];
 
+    // Add project-level skills if projectPath provided
+    if (projectPath) {
+      skillsDirs.push(join(projectPath, '.claude', 'skills')); // {project}/.claude/skills/
+    }
+
     const skills: CommandInfo[] = [];
     for (const skillsDir of skillsDirs) {
       const dirSkills = scanSkillsDir(skillsDir);
-      // Avoid duplicates by name
+      // Avoid duplicates by name (project-level takes precedence if added last)
       for (const skill of dirSkills) {
-        if (!skills.some(s => s.name === skill.name)) {
+        const existingIndex = skills.findIndex(s => s.name === skill.name);
+        if (existingIndex >= 0) {
+          // Replace with newer (project-level)
+          skills[existingIndex] = skill;
+        } else {
           skills.push(skill);
         }
       }
