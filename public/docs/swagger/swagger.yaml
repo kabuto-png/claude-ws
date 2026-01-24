@@ -1,13 +1,13 @@
 openapi: 3.0.3
 info:
-  title: Claude Kanban API
+  title: Claude.WS API
   description: |
-    Complete API documentation for the Claude Kanban application including Projects, Tasks, Attempts, Checkpoints, Git operations, Files, Search, Uploads, Authentication, Commands, Language, Shells, and Agent Factory.
+    Complete API documentation for Claude.WS including Projects, Tasks, Attempts, Checkpoints, Git operations, Files, Search, Uploads, Authentication, Commands, Language, Shells, and Agent Factory.
 
     **Note:** The default server port is **33333** (not 3000). Set `API_BASE` environment variable to override.
   version: 0.1.25
   contact:
-    name: Claude Workspace
+    name: Claude.WS
     url: https://github.com/Claude-Workspace/claude-ws
   license:
     name: MIT
