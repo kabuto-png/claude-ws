@@ -80,6 +80,16 @@ export function sanitizeFilename(name: string): string {
     .slice(0, 100);
 }
 
+// Sanitize directory name: remove special chars and lowercase
+export function sanitizeDirName(input: string): string {
+  return input
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '') // remove special characters except spaces and hyphens
+    .replace(/\s+/g, '-') // replace spaces with hyphens
+    .replace(/-+/g, '-') // collapse multiple hyphens
+    .replace(/^-|-$/g, ''); // trim leading/trailing hyphens
+}
+
 // Get file extension from filename
 export function getExtension(filename: string): string {
   const ext = extname(filename).toLowerCase();

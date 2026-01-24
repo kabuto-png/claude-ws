@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Upload, FileArchive, Loader2, AlertCircle, Package, FileText, Folder, Check, X } from 'lucide-react';
+import { Upload, FileArchive, Loader2, AlertCircle, Package, FileText, Folder, Check, X, Globe } from 'lucide-react';
 
 interface PreviewItem {
   type: 'skill' | 'command' | 'agent' | 'agent_set' | 'unknown';
@@ -113,7 +113,7 @@ export function UploadDialog({ open, onOpenChange, onUploadSuccess }: UploadDial
     }
   };
 
-  const handleConfirmImport = async () => {
+  const handleConfirmImport = async (globalImport: boolean = false) => {
     if (!sessionId) {
       setError('Session expired. Please upload the file again.');
       return;
@@ -132,6 +132,7 @@ export function UploadDialog({ open, onOpenChange, onUploadSuccess }: UploadDial
         body: JSON.stringify({
           sessionId,
           confirm: true,
+          globalImport,
         }),
       });
 
@@ -426,7 +427,16 @@ export function UploadDialog({ open, onOpenChange, onUploadSuccess }: UploadDial
                 <X className="w-4 h-4 mr-1" />
                 Cancel
               </Button>
-              <Button onClick={handleConfirmImport} disabled={uploading}>
+              <Button
+                variant="outline"
+                onClick={() => handleConfirmImport(true)}
+                disabled={uploading}
+                title="Import to ~/.claude (globally available)"
+              >
+                <Globe className="w-4 h-4 mr-1" />
+                Import Globally
+              </Button>
+              <Button onClick={() => handleConfirmImport(false)} disabled={uploading}>
                 <Check className="w-4 h-4 mr-1" />
                 Import {previewItems.length} Plugin(s)
               </Button>

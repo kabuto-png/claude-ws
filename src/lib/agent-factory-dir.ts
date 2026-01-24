@@ -1,27 +1,31 @@
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { homedir } from 'os';
 
+// Get project root directory (two levels up from src/lib/)
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const PROJECT_ROOT = join(__dirname, '..', '..');
+
 /**
- * Get the Claude home directory path
- * Uses CLAUDE_HOME_DIR from environment if set, otherwise defaults to ~/.claude
+ * Get the data directory path
+ * Uses DATA_DIR from environment if set, otherwise defaults to {project}/data
  */
-export function getClaudeHomeDir(): string {
-  const envDir = process.env.CLAUDE_HOME_DIR;
-  if (envDir) {
-    // Expand ~ to home directory if path starts with ~
-    if (envDir.startsWith('~')) {
-      return join(homedir(), envDir.slice(1));
-    }
-    return envDir;
-  }
-  return join(homedir(), '.claude');
+export function getDataDir(): string {
+  return process.env.DATA_DIR || join(PROJECT_ROOT, 'data');
 }
 
 /**
  * Get the Agent Factory directory path
- * Automatically resolves to CLAUDE_HOME_DIR/agent-factory
- * If CLAUDE_HOME_DIR is not set, uses ~/.claude/agent-factory
+ * Uses DATA_DIR/agent-factory if DATA_DIR is set, otherwise {project}/data/agent-factory
  */
 export function getAgentFactoryDir(): string {
-  return join(getClaudeHomeDir(), 'agent-factory');
+  return join(getDataDir(), 'agent-factory');
+}
+
+/**
+ * Get the global Claude directory path (~/.claude)
+ * This is where globally installed plugins are stored
+ */
+export function getGlobalClaudeDir(): string {
+  return join(homedir(), '.claude');
 }

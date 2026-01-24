@@ -84,11 +84,7 @@ export function getSystemPrompt(options: SystemPromptOptions | string = {}): str
     return ENGINEERING_SYSTEM_PROMPT;
   }
 
-  const { prompt, isResume = false, attemptCount = 1, outputFormat, outputSchema, attemptId, outputFilePath } = options;
-  
-  // Only include BGPID instructions for server-related tasks
-  if (prompt && isServerTask(prompt)) {
-    return ENGINEERING_SYSTEM_PROMPT;
+  const { prompt, outputFormat, outputSchema, attemptId, outputFilePath } = options;
 
   // Base prompt is always included
   let finalPrompt = ENGINEERING_SYSTEM_PROMPT;
@@ -99,22 +95,12 @@ export function getSystemPrompt(options: SystemPromptOptions | string = {}): str
     finalPrompt += '\n' + formatInstructions;
   }
 
-  // Add task-specific hints if we can detect task type
-  if (prompt) {
-    const taskType = detectTaskType(prompt);
-    if (taskType && TASK_HINTS[taskType]) {
-      finalPrompt += '\n' + TASK_HINTS[taskType];
-    }
+  // Add server-specific hints if task involves starting a server
+  if (prompt && isServerTask(prompt) && TASK_HINTS.server) {
+    finalPrompt += '\n' + TASK_HINTS.server;
   }
 
-  // Add context-aware hints
-  const contextHints = getContextHints(isResume, attemptCount);
-  if (contextHints) {
-    finalPrompt += '\n' + contextHints;
-  }
-
-  // For non-server tasks, SDK provides all needed context
-  return '';
+  return finalPrompt;
 }
 
 /**

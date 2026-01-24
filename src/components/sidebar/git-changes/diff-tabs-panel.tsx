@@ -3,11 +3,10 @@
 import { useRef } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { ResizeHandle } from '@/components/ui/resize-handle';
 import { DiffViewer } from './diff-viewer';
 import { useResizable } from '@/hooks/use-resizable';
-import { useSidebarStore, type DiffTabState } from '@/stores/sidebar-store';
+import { useSidebarStore } from '@/stores/sidebar-store';
 import { usePanelLayoutStore, PANEL_CONFIGS } from '@/stores/panel-layout-store';
 import { cn } from '@/lib/utils';
 
@@ -50,8 +49,11 @@ export function DiffTabsPanel() {
     >
       {/* Tab bar */}
       <div className="flex items-center border-b bg-muted/30 shrink-0">
-        <ScrollArea className="flex-1">
-          <div className="flex items-center h-9">
+        <div
+          className="flex-1 min-w-0 overflow-x-auto"
+          style={{ scrollbarWidth: 'thin', scrollbarColor: 'hsl(var(--border) / 0.5) transparent' }}
+        >
+          <div className="flex items-center h-9 w-max">
             {diffTabs.map((tab) => {
               const fileName = tab.filePath.split('/').pop() || tab.filePath;
               const isActive = tab.id === activeDiffTabId;
@@ -65,7 +67,7 @@ export function DiffTabsPanel() {
                     }
                   }}
                   className={cn(
-                    'group flex items-center gap-1.5 h-full px-3 border-r cursor-pointer',
+                    'group flex items-center gap-1.5 h-full px-3 border-r cursor-pointer shrink-0',
                     'hover:bg-accent/50 transition-colors',
                     isActive
                       ? 'bg-background border-b-2 border-b-primary'
@@ -74,13 +76,13 @@ export function DiffTabsPanel() {
                   title={`${tab.filePath} (${tab.staged ? 'staged' : 'unstaged'})`}
                 >
                   <span className={cn(
-                    'text-sm truncate max-w-[120px]',
+                    'text-sm whitespace-nowrap',
                     isActive ? 'text-foreground' : 'text-muted-foreground'
                   )}>
                     {fileName}
                   </span>
                   <span className={cn(
-                    'text-xs px-1 py-0.5 rounded',
+                    'text-xs px-1 py-0.5 rounded shrink-0',
                     tab.staged ? 'bg-green-500/20 text-green-700 dark:text-green-400' : 'bg-amber-500/20 text-amber-700 dark:text-amber-400'
                   )}>
                     {tab.staged ? 'S' : 'U'}
@@ -93,7 +95,7 @@ export function DiffTabsPanel() {
                       closeDiffTab(tab.id);
                     }}
                     className={cn(
-                      'size-5 p-0 opacity-0 group-hover:opacity-100',
+                      'size-5 p-0 opacity-0 group-hover:opacity-100 shrink-0',
                       'hover:bg-accent rounded-sm',
                       isActive && 'opacity-100'
                     )}
@@ -104,8 +106,7 @@ export function DiffTabsPanel() {
               );
             })}
           </div>
-          <ScrollBar orientation="horizontal" className="h-1.5" />
-        </ScrollArea>
+        </div>
 
         {/* Close all button */}
         {diffTabs.length > 1 && (

@@ -2,8 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { agentFactoryPlugins, projectPlugins } from '@/lib/db/schema';
 import { verifyApiKey, unauthorizedResponse } from '@/lib/api-auth';
-import { eq, and } from 'drizzle-orm';
+import { eq, and, inArray } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import { existsSync } from 'fs';
+
+// Check if a plugin's source folder exists on the filesystem
+function pluginSourceExists(plugin: {
+  type: string;
+  sourcePath: string | null;
+  agentSetPath?: string | null;
+}): boolean {
+  // Agent sets use agentSetPath, others use sourcePath
+  if (plugin.type === 'agent_set') {
+    return !!(plugin.agentSetPath && existsSync(plugin.agentSetPath));
+  }
+  return !!(plugin.sourcePath && existsSync(plugin.sourcePath));
+}
 
 // GET /api/agent-factory/projects/:projectId/plugins - Get plugins for project
 export async function GET(
@@ -24,6 +38,7 @@ export async function GET(
         name: agentFactoryPlugins.name,
         description: agentFactoryPlugins.description,
         sourcePath: agentFactoryPlugins.sourcePath,
+        agentSetPath: agentFactoryPlugins.agentSetPath,
         storageType: agentFactoryPlugins.storageType,
         metadata: agentFactoryPlugins.metadata,
         createdAt: agentFactoryPlugins.createdAt,
@@ -35,7 +50,27 @@ export async function GET(
       .innerJoin(agentFactoryPlugins, eq(projectPlugins.pluginId, agentFactoryPlugins.id))
       .where(eq(projectPlugins.projectId, projectId));
 
-    return NextResponse.json({ plugins: assignedPlugins });
+    // Check which plugins have missing source folders
+    const missingPluginIds: string[] = [];
+    const validPlugins = assignedPlugins.filter(plugin => {
+      if (pluginSourceExists(plugin)) {
+        return true;
+      }
+      missingPluginIds.push(plugin.id);
+      return false;
+    });
+
+    // Remove orphaned plugins from DB (both from agentFactoryPlugins and projectPlugins)
+    if (missingPluginIds.length > 0) {
+      // Delete from agentFactoryPlugins (cascades to projectPlugins due to foreign key)
+      await db
+        .delete(agentFactoryPlugins)
+        .where(inArray(agentFactoryPlugins.id, missingPluginIds));
+
+      console.log(`Removed ${missingPluginIds.length} orphaned plugin(s) with missing source folders`);
+    }
+
+    return NextResponse.json({ plugins: validPlugins });
   } catch (error) {
     console.error('Error fetching project plugins:', error);
     return NextResponse.json({ error: 'Failed to fetch project plugins' }, { status: 500 });

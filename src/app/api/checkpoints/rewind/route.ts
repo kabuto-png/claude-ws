@@ -73,7 +73,8 @@ export async function POST(request: Request) {
           await rewindQuery.supportedCommands();
 
           // List available checkpoints first for debugging
-          const checkpointsList = await rewindQuery.listCheckpoints?.();
+          // Note: listCheckpoints may not exist in all SDK versions
+          const checkpointsList = await (rewindQuery as any).listCheckpoints?.();
           console.log(`[Rewind] Available checkpoints:`, checkpointsList || 'listCheckpoints not available');
 
           // Call rewindFiles with the message UUID

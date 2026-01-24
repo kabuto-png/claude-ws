@@ -14,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useProjectStore } from '@/stores/project-store';
 import { FolderBrowserDialog } from './folder-browser-dialog';
+import { sanitizeDirName } from '@/lib/file-utils';
 
 type Mode = 'create' | 'open';
 type BrowserMode = 'root' | 'project';
@@ -45,8 +46,9 @@ export function SetupDialog({ open, onOpenChange }: SetupDialogProps) {
     }
   }, [open]);
 
-  // Compute full project path for create mode
-  const fullProjectPath = name && rootPath ? `${rootPath}/${name}` : '';
+  // Compute sanitized directory name and full project path for create mode
+  const dirName = sanitizeDirName(name);
+  const fullProjectPath = dirName && rootPath ? `${rootPath}/${dirName}` : '';
 
   const handleFolderSelect = (selectedPath: string) => {
     if (browserMode === 'root') {
@@ -72,13 +74,18 @@ export function SetupDialog({ open, onOpenChange }: SetupDialogProps) {
 
     let finalPath = path;
 
-    // For create mode, build path from root + name
+    // For create mode, build path from root + sanitized name
     if (mode === 'create') {
       if (!rootPath.trim()) {
         setError('Root folder is required');
         return;
       }
-      finalPath = `${rootPath.trim()}/${name.trim()}`;
+      const sanitizedName = sanitizeDirName(name);
+      if (!sanitizedName) {
+        setError('Project name must contain at least one alphanumeric character');
+        return;
+      }
+      finalPath = `${rootPath.trim()}/${sanitizedName}`;
     } else {
       // Open mode - path is required
       if (!path.trim()) {
