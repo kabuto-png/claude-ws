@@ -3,7 +3,6 @@
 import { useCallback, useRef } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { ResizeHandle } from '@/components/ui/resize-handle';
 import { FileTabContent } from './file-tab-content';
 import { useResizable } from '@/hooks/use-resizable';
@@ -78,8 +77,11 @@ export function FileTabsPanel() {
     >
       {/* Tab bar */}
       <div className="flex items-center border-b bg-muted/30 shrink-0">
-        <ScrollArea className="flex-1">
-          <div className="flex items-center h-9">
+        <div
+          className="flex-1 min-w-0 overflow-x-auto"
+          style={{ scrollbarWidth: 'thin', scrollbarColor: 'hsl(var(--border) / 0.5) transparent' }}
+        >
+          <div className="flex items-center h-9 w-max">
             {openTabs.map((tab) => {
               const fileName = tab.filePath.split('/').pop() || tab.filePath;
               const isActive = tab.id === activeTabId;
@@ -93,7 +95,7 @@ export function FileTabsPanel() {
                     }
                   }}
                   className={cn(
-                    'group flex items-center gap-1.5 h-full px-3 border-r cursor-pointer',
+                    'group flex items-center gap-1.5 h-full px-3 border-r cursor-pointer shrink-0',
                     'hover:bg-accent/50 transition-colors',
                     isActive
                       ? 'bg-background border-b-2 border-b-primary'
@@ -102,20 +104,20 @@ export function FileTabsPanel() {
                   title={tab.filePath}
                 >
                   <span className={cn(
-                    'text-sm truncate max-w-[150px]',
+                    'text-sm whitespace-nowrap',
                     isActive ? 'text-foreground' : 'text-muted-foreground'
                   )}>
                     {fileName}
                   </span>
                   {tab.isDirty && (
-                    <span className="text-amber-500 text-lg leading-none">•</span>
+                    <span className="text-amber-500 text-lg leading-none shrink-0">•</span>
                   )}
                   <Button
                     variant="ghost"
                     size="icon-sm"
                     onClick={(e) => handleCloseTab(tab.id, e)}
                     className={cn(
-                      'size-5 p-0 opacity-0 group-hover:opacity-100',
+                      'size-5 p-0 opacity-0 group-hover:opacity-100 shrink-0',
                       'hover:bg-accent rounded-sm',
                       isActive && 'opacity-100'
                     )}
@@ -126,8 +128,7 @@ export function FileTabsPanel() {
               );
             })}
           </div>
-          <ScrollBar orientation="horizontal" className="h-1.5" />
-        </ScrollArea>
+        </div>
 
         {/* Close all button */}
         {openTabs.length > 1 && (
