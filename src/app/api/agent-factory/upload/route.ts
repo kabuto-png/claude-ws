@@ -3,7 +3,7 @@ import { readFile, unlink, mkdir, writeFile, readdir, copyFile } from 'fs/promis
 import { join, dirname, basename } from 'path';
 import { existsSync, createReadStream, createWriteStream } from 'fs';
 import { verifyApiKey, unauthorizedResponse } from '@/lib/api-auth';
-import { getAgentFactoryDir } from '@/lib/agent-factory-dir';
+import { getAgentFactoryDir, getGlobalClaudeDir } from '@/lib/agent-factory-dir';
 import { uploadSessions, cleanupDirectory, type ExtractedItem, type UploadSession } from '@/lib/upload-sessions';
 import { db } from '@/lib/db';
 import { agentFactoryPlugins } from '@/lib/db/schema';
@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     // Handle JSON request (confirm mode with sessionId)
     if (contentType.includes('application/json')) {
       const body = await request.json();
-      const { sessionId, confirm } = body;
+      const { sessionId, confirm, globalImport } = body;
 
       if (confirm && sessionId) {
         const session = uploadSessions.get(sessionId);
@@ -34,21 +34,30 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Session expired or not found. Please upload again.' }, { status: 400 });
         }
 
-        const agentFactoryDir = getAgentFactoryDir();
-        await mkdir(join(agentFactoryDir, 'skills'), { recursive: true });
-        await mkdir(join(agentFactoryDir, 'commands'), { recursive: true });
-        await mkdir(join(agentFactoryDir, 'agents'), { recursive: true });
+        // Determine target directory: global ~/.claude or local agent-factory
+        let targetDir: string;
+        if (globalImport) {
+          targetDir = getGlobalClaudeDir();
+        } else {
+          targetDir = getAgentFactoryDir();
+        }
 
-        const items = await importFromSession(session, agentFactoryDir);
+        await mkdir(join(targetDir, 'skills'), { recursive: true });
+        await mkdir(join(targetDir, 'commands'), { recursive: true });
+        await mkdir(join(targetDir, 'agents'), { recursive: true });
+
+        const items = await importFromSession(session, targetDir, globalImport);
 
         // Clean up session
         await cleanupDirectory(session.extractDir);
         uploadSessions.delete(sessionId);
 
+        const locationMsg = globalImport ? ' globally to ~/.claude' : '';
         return NextResponse.json({
           success: true,
-          message: `File uploaded successfully. Organized ${items.length} component(s).`,
-          items
+          message: `File uploaded successfully${locationMsg}. Organized ${items.length} component(s).`,
+          items,
+          globalImport
         });
       }
 
@@ -163,124 +172,136 @@ function extractDescriptionFromMarkdown(content: string): string | null {
   return null;
 }
 
-async function importFromSession(session: UploadSession, agentFactoryDir: string): Promise<ExtractedItem[]> {
+async function importFromSession(session: UploadSession, targetBaseDir: string, globalImport: boolean = false): Promise<ExtractedItem[]> {
   const importedItems: ExtractedItem[] = [];
   const now = Date.now();
 
   for (const item of session.items) {
+    // Recompute target paths based on the actual target directory
+    let targetPath: string;
+    if (item.type === 'agent_set') {
+      targetPath = join(targetBaseDir, 'agent-sets', item.name);
+    } else if (item.type === 'skill') {
+      targetPath = join(targetBaseDir, 'skills', item.name, 'SKILL.md');
+    } else if (item.type === 'agent') {
+      targetPath = join(targetBaseDir, 'agents', `${item.name}.md`);
+    } else {
+      targetPath = join(targetBaseDir, 'commands', `${item.name}.md`);
+    }
+
     if (item.type === 'agent_set') {
       // Agent set: copy the entire folder
-      await cleanupDirectory(item.targetPath).catch(() => {});
-      await mkdir(dirname(item.targetPath), { recursive: true });
-      await moveDirectory(item.sourcePath, item.targetPath);
+      await cleanupDirectory(targetPath).catch(() => {});
+      await mkdir(dirname(targetPath), { recursive: true });
+      await moveDirectory(item.sourcePath, targetPath);
 
-      // Check if component already exists in database
-      const existing = await db
-        .select()
-        .from(agentFactoryPlugins)
-        .where(and(
-          eq(agentFactoryPlugins.name, item.name),
-          eq(agentFactoryPlugins.type, 'agent_set')
-        ))
-        .get();
+      // Only register to database if not a global import
+      if (!globalImport) {
+        const existing = await db
+          .select()
+          .from(agentFactoryPlugins)
+          .where(and(
+            eq(agentFactoryPlugins.name, item.name),
+            eq(agentFactoryPlugins.type, 'agent_set')
+          ))
+          .get();
 
-      const description = `Agent set containing ${item.componentCount || 0} component(s)`;
+        const description = `Agent set containing ${item.componentCount || 0} component(s)`;
 
-      if (existing) {
-        // Update existing component
-        await db
-          .update(agentFactoryPlugins)
-          .set({
+        if (existing) {
+          await db
+            .update(agentFactoryPlugins)
+            .set({
+              description,
+              agentSetPath: targetPath,
+              storageType: 'imported',
+              updatedAt: now,
+            })
+            .where(eq(agentFactoryPlugins.id, existing.id));
+        } else {
+          const newPlugin = {
+            id: nanoid(),
+            type: 'agent_set' as const,
+            name: item.name,
             description,
-            agentSetPath: item.targetPath,
-            storageType: 'imported',
+            sourcePath: null,
+            storageType: 'imported' as const,
+            agentSetPath: targetPath,
+            metadata: null,
+            createdAt: now,
             updatedAt: now,
-          })
-          .where(eq(agentFactoryPlugins.id, existing.id));
-      } else {
-        // Create new component entry
-        const newPlugin = {
-          id: nanoid(),
-          type: 'agent_set' as const,
-          name: item.name,
-          description,
-          sourcePath: null,
-          storageType: 'imported' as const,
-          agentSetPath: item.targetPath,
-          metadata: null,
-          createdAt: now,
-          updatedAt: now,
-        };
-        await db.insert(agentFactoryPlugins).values(newPlugin);
+          };
+          await db.insert(agentFactoryPlugins).values(newPlugin);
+        }
       }
     } else {
       // Regular component (skill, command, agent)
       let mdPath: string;
       if (item.type === 'skill') {
         // Skills are directories - move the entire directory
-        const targetDir = dirname(item.targetPath);
-        await cleanupDirectory(targetDir).catch(() => {});
-        await mkdir(targetDir, { recursive: true });
-        await moveDirectory(item.sourcePath, targetDir);
-        mdPath = item.targetPath;
+        const skillDir = dirname(targetPath);
+        await cleanupDirectory(skillDir).catch(() => {});
+        await mkdir(skillDir, { recursive: true });
+        await moveDirectory(item.sourcePath, skillDir);
+        mdPath = targetPath;
       } else {
         // Commands and agents are single files
-        await mkdir(dirname(item.targetPath), { recursive: true });
-        await unlink(item.targetPath).catch(() => {});
-        await copyFile(item.sourcePath, item.targetPath);
-        mdPath = item.targetPath;
+        await mkdir(dirname(targetPath), { recursive: true });
+        await unlink(targetPath).catch(() => {});
+        await copyFile(item.sourcePath, targetPath);
+        mdPath = targetPath;
       }
 
-      // Read the file to extract description
-      let description: string | null = null;
-      try {
-        const content = await readFile(mdPath, 'utf-8');
-        description = extractDescriptionFromMarkdown(content);
-      } catch {
-        // Ignore read errors
-      }
+      // Only register to database if not a global import
+      if (!globalImport) {
+        let description: string | null = null;
+        try {
+          const content = await readFile(mdPath, 'utf-8');
+          description = extractDescriptionFromMarkdown(content);
+        } catch {
+          // Ignore read errors
+        }
 
-      // Check if component already exists in database
-      const componentType = item.type === 'unknown' ? 'command' : item.type;
-      const existing = await db
-        .select()
-        .from(agentFactoryPlugins)
-        .where(and(
-          eq(agentFactoryPlugins.name, item.name),
-          eq(agentFactoryPlugins.type, componentType)
-        ))
-        .get();
+        const componentType = item.type === 'unknown' ? 'command' : item.type;
+        const existing = await db
+          .select()
+          .from(agentFactoryPlugins)
+          .where(and(
+            eq(agentFactoryPlugins.name, item.name),
+            eq(agentFactoryPlugins.type, componentType)
+          ))
+          .get();
 
-      if (existing) {
-        // Update existing component
-        await db
-          .update(agentFactoryPlugins)
-          .set({
+        if (existing) {
+          await db
+            .update(agentFactoryPlugins)
+            .set({
+              description,
+              sourcePath: targetPath,
+              storageType: 'imported',
+              updatedAt: now,
+            })
+            .where(eq(agentFactoryPlugins.id, existing.id));
+        } else {
+          const newPlugin = {
+            id: nanoid(),
+            type: componentType,
+            name: item.name,
             description,
-            sourcePath: item.targetPath,
-            storageType: 'imported',
+            sourcePath: targetPath,
+            storageType: 'imported' as const,
+            agentSetPath: null,
+            metadata: null,
+            createdAt: now,
             updatedAt: now,
-          })
-          .where(eq(agentFactoryPlugins.id, existing.id));
-      } else {
-        // Create new component entry
-        const newPlugin = {
-          id: nanoid(),
-          type: componentType,
-          name: item.name,
-          description,
-          sourcePath: item.targetPath,
-          storageType: 'imported' as const,
-          agentSetPath: null,
-          metadata: null,
-          createdAt: now,
-          updatedAt: now,
-        };
-        await db.insert(agentFactoryPlugins).values(newPlugin);
+          };
+          await db.insert(agentFactoryPlugins).values(newPlugin);
+        }
       }
     }
 
-    importedItems.push(item);
+    // Update item with new target path for response
+    importedItems.push({ ...item, targetPath });
   }
 
   return importedItems;

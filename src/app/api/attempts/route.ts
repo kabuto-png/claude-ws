@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { nanoid } from 'nanoid';
 import { eq, and, desc, asc } from 'drizzle-orm';
-import { mkdir } from 'fs/promises';
+import { mkdir, readFile } from 'fs/promises';
+import { existsSync } from 'fs';
 import { join } from 'path';
-import { homedir } from 'os';
 import { formatOutput } from '@/lib/output-formatter';
 import { waitForAttemptCompletion, AttemptTimeoutError } from '@/lib/attempt-waiter';
 import { agentManager } from '@/lib/agent-manager';
 import { sessionManager } from '@/lib/session-manager';
+import { getContentTypeForFormat } from '@/lib/content-types';
+import { sanitizeDirName } from '@/lib/file-utils';
 import type { ClaudeOutput, OutputFormat, RequestMethod } from '@/types';
 
 // POST /api/attempts - Create a new attempt and start agent execution
@@ -137,7 +139,14 @@ export async function POST(request: NextRequest) {
       }
 
       // Determine project path based on projectRootPath
-      const projectDirName = `${projectId}-${projectName}`;
+      const sanitizedProjectName = sanitizeDirName(projectName);
+      if (!sanitizedProjectName) {
+        return NextResponse.json(
+          { error: 'projectName must contain at least one alphanumeric character' },
+          { status: 400 }
+        );
+      }
+      const projectDirName = `${projectId}-${sanitizedProjectName}`;
       const projectPath = projectRootPath
         ? join(projectRootPath, projectDirName)
         : join(process.cwd(), 'data', 'projects', projectDirName);
@@ -300,7 +309,37 @@ async function createAttempt(
         );
       }
 
-      // Attempt completed, fetch logs and format
+      // If output_format is set, return file content from tmp directory
+      if (outputFormat) {
+        const dataDir = process.env.DATA_DIR || join(process.cwd(), 'data');
+        const filePath = join(dataDir, 'tmp', `${newAttempt.id}.${outputFormat}`);
+
+        if (existsSync(filePath)) {
+          try {
+            const content = await readFile(filePath, 'utf-8');
+            const contentType = getContentTypeForFormat(outputFormat);
+
+            return new NextResponse(content, {
+              headers: {
+                'Content-Type': contentType,
+              },
+            });
+          } catch (readError) {
+            return NextResponse.json(
+              { error: 'Failed to read output file' },
+              { status: 500 }
+            );
+          }
+        }
+
+        // File doesn't exist, return error
+        return NextResponse.json(
+          { error: 'Output file not found', attemptId: newAttempt.id },
+          { status: 404 }
+        );
+      }
+
+      // No output_format: fetch logs and return formatted JSON (backward compatible)
       const logs = await db.query.attemptLogs.findMany({
         where: eq(schema.attemptLogs.attemptId, newAttempt.id),
         orderBy: [asc(schema.attemptLogs.createdAt)]
@@ -318,13 +357,10 @@ async function createAttempt(
         })
         .filter(Boolean) as ClaudeOutput[];
 
-      // If no format specified, return JSON (backward compatible)
-      const finalFormat = outputFormat || 'json';
-
       // Format and return
       const formatted = formatOutput(
         messages,
-        finalFormat,
+        'json',
         outputSchema || null,
         {
           id: result.attempt.id,

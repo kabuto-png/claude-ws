@@ -78,7 +78,7 @@ export function PluginList() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
         <div className="flex items-center justify-between sm:justify-normal gap-3">
           <div className="flex items-center gap-3">
             <Package className="w-6 h-6" />
@@ -110,6 +110,11 @@ export function PluginList() {
           </Button>
         </div>
       </div>
+
+      {/* Description */}
+      <p className="text-sm text-muted-foreground mb-6">
+        This is your plugin pool. To install plugins to a specific project, go to <strong>Project Settings</strong> and select plugins to install.
+      </p>
 
       {/* Filters and Search */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
