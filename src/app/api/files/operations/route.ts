@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { rm } from 'fs/promises';
+import { rm, rename } from 'fs/promises';
 import fs from 'fs';
 import path from 'path';
 import AdmZip from 'adm-zip';
@@ -210,6 +210,95 @@ export async function POST(request: NextRequest) {
     console.error('Download error:', error);
     return NextResponse.json(
       { error: 'Failed to create download' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PUT /api/files/operations
+ *
+ * Rename a file or folder.
+ *
+ * Request body: { path: string, rootPath: string, newName: string }
+ * Response: { success: true }
+ *
+ * Security:
+ * - Path traversal validation via validatePath()
+ * - File existence check before rename
+ * - New name validation (no path traversal, no special characters)
+ */
+export async function PUT(request: NextRequest) {
+  try {
+    const { path: targetPath, rootPath, newName } = await request.json();
+
+    // Validate required fields
+    if (!targetPath || !rootPath || !newName) {
+      return NextResponse.json(
+        { error: 'path, rootPath, and newName required' },
+        { status: 400 }
+      );
+    }
+
+    // Security: Validate path stays within root
+    const resolved = validatePath(targetPath, rootPath);
+
+    // Check if path exists
+    if (!fs.existsSync(resolved)) {
+      return NextResponse.json(
+        { error: 'Path not found' },
+        { status: 404 }
+      );
+    }
+
+    // Validate new name (prevent path traversal)
+    if (newName.includes('/') || newName.includes('\\') || newName.includes('..')) {
+      return NextResponse.json(
+        { error: 'Invalid name. Cannot contain path separators or ..' },
+        { status: 400 }
+      );
+    }
+
+    // Build new path
+    const directory = path.dirname(resolved);
+    const newPath = path.join(directory, newName);
+
+    // Check if new path already exists
+    if (fs.existsSync(newPath)) {
+      return NextResponse.json(
+        { error: 'A file with that name already exists' },
+        { status: 409 }
+      );
+    }
+
+    // Rename file/folder
+    await rename(resolved, newPath);
+
+    return NextResponse.json({ success: true, newPath });
+  } catch (error: unknown) {
+    // Handle known error types
+    if (error instanceof Error) {
+      // Path traversal attempt
+      if (error.message === 'Path traversal detected') {
+        return NextResponse.json(
+          { error: 'Invalid path' },
+          { status: 403 }
+        );
+      }
+
+      // Permission denied
+      if ('code' in error && error.code === 'EACCES') {
+        return NextResponse.json(
+          { error: 'Permission denied' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // Log and return generic error
+    console.error('Rename error:', error);
+    return NextResponse.json(
+      { error: 'Failed to rename' },
       { status: 500 }
     );
   }
