@@ -1,6 +1,6 @@
 # Claude Kanban Project Roadmap
 
-**Last Updated:** 2026-01-24
+**Last Updated:** 2026-01-25
 **Version:** 0.2.0
 
 ## Overview
@@ -12,7 +12,7 @@ Claude Kanban is a modern project management application built with Next.js, Typ
 ### Active Feature: File Explorer Context Menu
 
 **Plan ID:** 260124-1552-file-explorer-context-menu
-**Status:** In Progress (20% complete)
+**Status:** In Progress (40% complete)
 **Started:** 2026-01-24
 **Priority:** P2
 **Effort:** 5 hours
@@ -22,7 +22,7 @@ Claude Kanban is a modern project management application built with Next.js, Typ
 | Phase | Status | Progress | Completed |
 |-------|--------|----------|-----------|
 | 01. Setup & Dependencies | ✅ Done | 100% | 2026-01-24 |
-| 02. Backend API Routes | Pending | 0% | - |
+| 02. Backend API Routes | ✅ Done | 100% | 2026-01-25 |
 | 03. Frontend Components | Pending | 0% | - |
 | 04. Integration | Pending | 0% | - |
 | 05. Testing & Edge Cases | Pending | 0% | - |

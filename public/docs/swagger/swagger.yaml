@@ -771,6 +771,141 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /api/files/operations:
+    delete:
+      tags:
+        - Files
+      summary: Delete file or folder
+      description: |
+        Delete a file or folder recursively from the filesystem.
+
+        **Security:**
+        - Path traversal validation via `path.relative()` check
+        - File existence check before deletion
+        - Permission error handling (EACCES -> 403)
+      operationId: deleteFileOrFolder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - path
+                - rootPath
+              properties:
+                path:
+                  type: string
+                  description: Absolute path to file/folder to delete
+                rootPath:
+                  type: string
+                  description: Root directory path for security validation
+      responses:
+        "200":
+          description: File/folder deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        "400":
+          description: Bad request (missing required fields)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Path traversal detected or permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Path not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    post:
+      tags:
+        - Files
+      summary: Download file or folder as ZIP
+      description: |
+        Create a ZIP archive of a file or folder for download.
+
+        **Security:**
+        - Path traversal validation via `path.relative()` check
+        - File existence check before zipping
+        - Only operations within provided rootPath
+      operationId: downloadAsZip
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - path
+                - rootPath
+              properties:
+                path:
+                  type: string
+                  description: Absolute path to file/folder to zip
+                rootPath:
+                  type: string
+                  description: Root directory path for security validation
+      responses:
+        "200":
+          description: ZIP archive created successfully
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+          headers:
+            Content-Disposition:
+              description: Download filename
+              schema:
+                type: string
+                example: 'attachment; filename="folder.zip"'
+            Content-Length:
+              description: ZIP file size in bytes
+              schema:
+                type: integer
+        "400":
+          description: Bad request (missing required fields)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "403":
+          description: Path traversal detected or permission denied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "404":
+          description: Path not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /api/git/discard:
     post:
       tags:
