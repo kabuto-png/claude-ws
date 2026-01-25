@@ -20,6 +20,7 @@ import { checkpointManager } from './checkpoint-manager';
 import { usageTracker } from './usage-tracker';
 import { workflowTracker } from './workflow-tracker';
 import { collectGitStats, gitStatsCache } from './git-stats-collector';
+import { getSystemPrompt } from './system-prompt';
 
 // MCP Server configuration types matching SDK's McpServerConfig union
 interface MCPStdioServerConfig {
@@ -248,6 +249,20 @@ class AgentManager extends EventEmitter {
   }
 
   /**
+   * Check if command is a server/dev command that should run in background
+   */
+  private isServerCommand(command: string): boolean {
+    const patterns = [
+      /npm\s+run\s+(dev|start|serve)/i,
+      /yarn\s+(dev|start|serve)/i,
+      /pnpm\s+(dev|start|serve)/i,
+      /npx\s+(directus|strapi|next|vite|nuxt)/i,
+      /nohup\s+/i,
+    ];
+    return patterns.some(p => p.test(command));
+  }
+
+  /**
    * Start a new Claude Agent SDK query
    */
   async start(options: AgentStartOptions): Promise<void> {
@@ -268,6 +283,12 @@ class AgentManager extends EventEmitter {
     if (filePaths && filePaths.length > 0) {
       const fileRefs = filePaths.map(fp => `@${fp}`).join(' ');
       fullPrompt = `${fileRefs} ${prompt}`;
+    }
+
+    // Add system prompt (BGPID instructions for background servers)
+    const systemPrompt = getSystemPrompt({ prompt, projectPath });
+    if (systemPrompt) {
+      fullPrompt += `\n\n${systemPrompt}`;
     }
 
     // Add output format instructions to user prompt
@@ -440,6 +461,21 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
             };
           }
 
+          // Intercept Bash commands to fix incomplete BGPID patterns
+          if (toolName === 'Bash') {
+            const command = input.command as string | undefined;
+            if (command && this.isServerCommand(command) && !command.includes('echo "BGPID:$!"')) {
+              // Fix incomplete nohup pattern - add missing 2>&1 & echo "BGPID:$!"
+              let fixedCommand = command;
+              // Pattern: ends with "> /tmp/xxx.log" or "> /tmp/xxx.log " without the full suffix
+              if (/>\s*\/tmp\/[^\s]+\.log\s*$/.test(command)) {
+                fixedCommand = command.trim() + ' 2>&1 & echo "BGPID:$!"';
+                console.log('[AgentManager] Fixed BGPID pattern:', fixedCommand);
+                return { behavior: 'allow' as const, updatedInput: { ...input, command: fixedCommand } };
+              }
+            }
+          }
+
           // Auto-allow all other tools (bypassPermissions mode)
           return { behavior: 'allow' as const, updatedInput: input };
         },
@@ -512,18 +548,47 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
                 workflowTracker.trackSubagentEnd(attemptId, block.tool_use_id, success);
 
                 // Detect BGPID pattern in tool result content (from nohup background commands)
-                const content = typeof block.content === 'string' ? block.content : '';
+                // Content can be string or array of {type, text} blocks
+                let content = '';
+                if (typeof block.content === 'string') {
+                  content = block.content;
+                } else if (Array.isArray(block.content)) {
+                  content = (block.content as Array<{ type?: string; text?: string }>)
+                    .filter(c => c && typeof c === 'object' && 'text' in c)
+                    .map(c => c.text || '')
+                    .join('');
+                }
+                console.log(`[AgentManager] Tool result content for BGPID check:`, content.substring(0, 200));
                 const bgpidMatch = content.match(/BGPID:(\d+)/);
+                const emptyBgpidMatch = content.match(/BGPID:\s*$/m) || content.trim() === 'BGPID:';
+
                 if (bgpidMatch && block.tool_use_id) {
+                  // Full BGPID with PID number
                   const pid = parseInt(bgpidMatch[1], 10);
-                  // Look up original command from tracked Bash tool_uses
+                  console.log(`[AgentManager] BGPID detected: ${pid}`);
                   const bashInfo = this.pendingBashCommands.get(block.tool_use_id);
                   const command = bashInfo?.command || `Background process (PID: ${pid})`;
-                  // Try to extract log file path from command
                   const logMatch = command.match(/>\s*([^\s]+\.log)/);
                   const logFile = logMatch ? logMatch[1] : undefined;
+                  console.log(`[AgentManager] Emitting trackedProcess: pid=${pid}, command=${command.substring(0, 50)}`);
                   this.emit('trackedProcess', { attemptId, pid, command, logFile });
-                  // Clean up
+                  this.pendingBashCommands.delete(block.tool_use_id);
+                } else if (emptyBgpidMatch && block.tool_use_id) {
+                  // Empty BGPID - Claude omitted the & so $! is empty
+                  // Extract actual command and spawn via backgroundShell
+                  const bashInfo = this.pendingBashCommands.get(block.tool_use_id);
+                  if (bashInfo?.command && this.isServerCommand(bashInfo.command)) {
+                    // Extract command from nohup pattern: nohup <cmd> > /tmp/xxx.log
+                    const nohupMatch = bashInfo.command.match(/nohup\s+(.+?)\s*>\s*\/tmp\//);
+                    if (nohupMatch) {
+                      const actualCommand = nohupMatch[1].trim();
+                      console.log(`[AgentManager] Empty BGPID detected, spawning shell for: ${actualCommand}`);
+                      this.emit('backgroundShell', {
+                        attemptId,
+                        shell: { toolUseId: block.tool_use_id, command: actualCommand, description: 'Auto-spawned from empty BGPID', originalCommand: bashInfo.command },
+                      });
+                    }
+                  }
                   this.pendingBashCommands.delete(block.tool_use_id);
                 }
               }

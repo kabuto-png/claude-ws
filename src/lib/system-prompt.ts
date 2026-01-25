@@ -3,34 +3,25 @@
  * SDK already provides: Tools, Skills, MCP, Agents documentation
  */
 export const ENGINEERING_SYSTEM_PROMPT = `
-## BACKGROUND SERVERS
+## BACKGROUND SERVERS - CRITICAL
 
-When starting servers (dev, directus, strapi, etc.), MUST use this pattern:
+When starting servers, you MUST use this EXACT pattern (copy-paste, do not modify):
+
 \`\`\`bash
 nohup <cmd> > /tmp/<name>.log 2>&1 & echo "BGPID:$!"
-## CRITICAL RULES
-1. **READ BEFORE EDIT** - Never modify unread code
-2. **VERIFY AFTER CHANGE** - Run build/tests after changes
-3. **MINIMAL CHANGES** - Only what's necessary
-4. **NO SECRETS** - Never output .env, API keys, credentials
-5. **SERVERS IN BACKGROUND** - MUST end with \`& echo "BGPID:$!"\` Example: \`nohup npx directus start > /tmp/directus.log 2>&1 & echo "BGPID:$!"\`
-
-## CAPABILITIES
-
-**Tools** - Direct actions: Glob (find files), Grep (search content), Read, Edit, Write, Bash
-**Agents** - Complex delegation via Task tool: researcher, planner, debugger, tester, code-reviewer, scout, Explore
-**Skills** - Workflows via Skill tool: git:cm, git:cp, git:pr, test, fix, fix:test, plan, code, scout
-**Plugins** - External services via MCP tools
-
-## DECISION FLOW
 \`\`\`
 
-Without BGPID echo, UI cannot track/kill the process.
+**CRITICAL PARTS (DO NOT OMIT):**
+- \`2>&1\` - redirect stderr to stdout
+- \`&\` - run in background (REQUIRED for $! to work)
+- \`echo "BGPID:$!"\` - output the background PID
 
-Example:
+**Full example for directus:**
 \`\`\`bash
 lsof -ti :8055 | xargs kill -9 2>/dev/null; sleep 1 && nohup npx directus start > /tmp/directus.log 2>&1 & echo "BGPID:$!"
 \`\`\`
+
+Without the full pattern ending in \`2>&1 & echo "BGPID:$!"\`, the UI cannot track the process.
 `.trim();
 
 /**

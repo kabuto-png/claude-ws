@@ -635,9 +635,50 @@ app.prepare().then(async () => {
       });
       if (!project) return;
 
-      // Add delay to let SDK's process start first, then our kill command takes over
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Extract port and find existing process PID
+      // Add delay to let nohup process bind to port before checking
+      const portMatch = shell.originalCommand?.match(/lsof\s+-ti\s+:(\d+)/);
+      if (portMatch) {
+        const port = portMatch[1];
+        console.log(`[Server] Waiting 6.6s for process to bind to port ${port}...`);
+        await new Promise(resolve => setTimeout(resolve, 6666));
+        try {
+          const { execSync } = require('child_process');
+          const pidOutput = execSync(`lsof -ti :${port} 2>/dev/null || true`, { encoding: 'utf-8' }).trim();
+          if (pidOutput) {
+            const pid = parseInt(pidOutput.split('\n')[0], 10);
+            if (pid) {
+              // Track existing process instead of respawning
+              console.log(`[Server] Found existing process on port ${port}: PID ${pid}`);
+              const shellId = shellManager.trackExternalProcess({
+                projectId: project.id,
+                attemptId,
+                pid,
+                command: shell.command,
+                cwd: project.path,
+              });
 
+              if (shellId) {
+                await db.insert(schema.shells).values({
+                  id: shellId,
+                  projectId: project.id,
+                  attemptId,
+                  command: shell.command,
+                  cwd: project.path,
+                  pid,
+                  status: 'running',
+                });
+                console.log(`[Server] Tracking external process ${shellId} (PID ${pid})`);
+                return;
+              }
+            }
+          }
+        } catch {
+          // Fall through to spawn new shell
+        }
+      }
+
+      // No existing process found, spawn new shell
       const shellId = shellManager.spawn({
         projectId: project.id,
         attemptId,
@@ -663,8 +704,8 @@ app.prepare().then(async () => {
   });
 
   // Handle tracked process from BGPID pattern in bash output
-  // Kill the nohup'd process and respawn via ShellManager for realtime streaming
-  agentManager.on('trackedProcess', async ({ attemptId, pid, command }) => {
+  // Track existing process instead of kill-and-respawn to avoid port conflicts
+  agentManager.on('trackedProcess', async ({ attemptId, pid, command, logFile: eventLogFile }) => {
     console.log(`[Server] Tracked process detected for ${attemptId}: PID ${pid}`);
 
     try {
@@ -695,49 +736,43 @@ app.prepare().then(async () => {
         return;
       }
 
-      // Kill the nohup'd process - we'll respawn via ShellManager for realtime streaming
-      try {
-        process.kill(pid, 'SIGTERM');
-        console.log(`[Server] Killed nohup'd process ${pid}`);
-      } catch {
-        console.log(`[Server] Process ${pid} already dead or not killable`);
-      }
-
-      // Extract actual command from nohup wrapper
-      // Pattern: "nohup <command> > /tmp/xxx.log 2>&1 & echo ..."
-      // or: "kill ...; sleep ...; nohup <command> > ..."
+      // Extract actual command from nohup wrapper, use eventLogFile if provided
       let actualCommand = command;
-      const nohupMatch = command.match(/nohup\s+(.+?)\s*>\s*\/tmp\//);
+      let logFile = eventLogFile;
+      const nohupMatch = command.match(/nohup\s+(.+?)\s*>\s*(\/tmp\/[^\s]+\.log)/);
       if (nohupMatch) {
         actualCommand = nohupMatch[1].trim();
+        logFile = logFile || nohupMatch[2];
       }
-      console.log(`[Server] Extracted command: ${actualCommand}`);
+      console.log(`[Server] Extracted command: ${actualCommand}, logFile: ${logFile}`);
 
-      // Wait for port to be released
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      // Spawn via ShellManager for realtime stdout/stderr capture
-      const shellId = shellManager.spawn({
+      // Track existing process via ShellManager (no kill-and-respawn)
+      const shellId = shellManager.trackExternalProcess({
         projectId: project.id,
         attemptId,
+        pid,
         command: actualCommand,
         cwd: project.path,
-        description: `Background: ${actualCommand.substring(0, 50)}`,
+        logFile,
       });
 
+      if (!shellId) {
+        console.error(`[Server] Failed to track process: PID ${pid} not alive`);
+        return;
+      }
+
       // Save to database for persistence
-      const shellInfo = shellManager.getShellInfo(shellId);
       await db.insert(schema.shells).values({
         id: shellId,
         projectId: project.id,
         attemptId,
         command: actualCommand,
         cwd: project.path,
-        pid: shellInfo?.pid || null,
+        pid,
         status: 'running',
       });
 
-      console.log(`[Server] Tracked external process ${shellId} (PID ${pid}) for project ${project.id}`);
+      console.log(`[Server] Tracking external process ${shellId} (PID ${pid}) for project ${project.id}`);
     } catch (error) {
       console.error(`[Server] Failed to track process:`, error);
     }
