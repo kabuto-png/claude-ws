@@ -243,17 +243,16 @@ export function FileTreeItem({
           </span>
         )}
 
-        {/* Context menu button (shows on hover/selection) */}
-        {!isRenaming && (
+        {/* Context menu button (shows only when item is selected/clicked) */}
+        {!isRenaming && isSelected && (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  'h-5 w-5 p-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity',
-                  'hover:bg-accent data-[state=open]:bg-accent',
-                  isSelected && 'opacity-100'
+                  'h-5 w-5 p-0 shrink-0',
+                  'hover:bg-accent data-[state=open]:bg-accent'
                 )}
                 onClick={(e) => e.stopPropagation()}
               >
