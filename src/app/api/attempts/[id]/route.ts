@@ -117,3 +117,60 @@ export async function GET(
     );
   }
 }
+
+// POST /api/attempts/[id] - Reactivate a completed/failed attempt
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+
+    // Get the attempt
+    const attempt = await db
+      .select()
+      .from(schema.attempts)
+      .where(eq(schema.attempts.id, id))
+      .limit(1);
+
+    if (attempt.length === 0) {
+      return NextResponse.json(
+        { error: 'Attempt not found' },
+        { status: 404 }
+      );
+    }
+
+    const attemptData = attempt[0];
+
+    // Only reactivate attempts that are not already running
+    if (attemptData.status === 'running') {
+      return NextResponse.json({
+        success: true,
+        alreadyRunning: true,
+        attempt: { id: attemptData.id, status: attemptData.status }
+      });
+    }
+
+    // Reactivate the attempt
+    await db
+      .update(schema.attempts)
+      .set({
+        status: 'running',
+        completedAt: null,  // Clear completion time
+      })
+      .where(eq(schema.attempts.id, id));
+
+    console.log(`[reactivate] Reactivated attempt ${id} for task ${attemptData.taskId}`);
+
+    return NextResponse.json({
+      success: true,
+      attempt: { id: attemptData.id, status: 'running' }
+    });
+  } catch (error) {
+    console.error('Error reactivating attempt:', error);
+    return NextResponse.json(
+      { error: 'Failed to reactivate attempt' },
+      { status: 500 }
+    );
+  }
+}

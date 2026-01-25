@@ -599,12 +599,17 @@ app.prepare().then(async () => {
 
   // Handle AskUserQuestion detection from AgentManager
   agentManager.on('question', ({ attemptId, toolUseId, questions }) => {
-    console.log(`[Server] AskUserQuestion detected for ${attemptId}`);
+    console.log(`[Server] AskUserQuestion detected for ${attemptId}`, {
+      toolUseId,
+      questionCount: questions?.length,
+      questions: questions?.map((q: any) => ({ header: q.header, question: q.question?.substring(0, 50) }))
+    });
     io.to(`attempt:${attemptId}`).emit('question:ask', {
       attemptId,
       toolUseId,
       questions,
     });
+    console.log(`[Server] Emitted question:ask to attempt:${attemptId}`);
   });
 
   // Handle background shell detection from AgentManager (Bash with run_in_background=true)

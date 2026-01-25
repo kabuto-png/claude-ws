@@ -29,6 +29,7 @@ interface ToolUseBlockProps {
   isError?: boolean;
   isStreaming?: boolean;
   className?: string;
+  onOpenPanel?: () => void;
 }
 
 // Get icon for tool type
@@ -62,6 +63,7 @@ function getToolActiveVerb(name: string): string {
     WebSearch: 'Searching web',
     Skill: 'Executing',
     Task: 'Delegating',
+    AskUserQuestion: 'Waiting for',
   };
   return verbs[name] || 'Processing';
 }
@@ -281,7 +283,7 @@ function EditBlock({ input, result, isError }: { input: any; result?: string; is
   );
 }
 
-export function ToolUseBlock({ name, input, result, isError, isStreaming, className }: ToolUseBlockProps) {
+export function ToolUseBlock({ name, input, result, isError, isStreaming, className, onOpenPanel }: ToolUseBlockProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const Icon = getToolIcon(name);
   const displayText = getToolDisplay(name, input);
@@ -293,6 +295,7 @@ export function ToolUseBlock({ name, input, result, isError, isStreaming, classN
   const isBash = name === 'Bash';
   const isEdit = name === 'Edit';
   const isTodoWrite = name === 'TodoWrite';
+  const isAskUserQuestion = name === 'AskUserQuestion';
   const hasEditDiff = isEdit && Boolean(inputObj?.old_string) && Boolean(inputObj?.new_string);
   const hasTodos = isTodoWrite && Array.isArray(inputObj?.todos) && (inputObj.todos as TodoItem[]).length > 0;
 
@@ -304,6 +307,10 @@ export function ToolUseBlock({ name, input, result, isError, isStreaming, classN
 
   // Completed tool with result - show in green like CLI
   const isCompleted = !isStreaming && result && !isError;
+
+  // Show open button for AskUserQuestion when no result yet (waiting for user response)
+  // This persists across server restarts for unanswered questions
+  const showOpenButton = isAskUserQuestion && !result && onOpenPanel;
 
   return (
     <div className={cn('group w-full max-w-full overflow-hidden my-2', className)}>
@@ -336,7 +343,7 @@ export function ToolUseBlock({ name, input, result, isError, isStreaming, classN
 
         {/* Tool name and target - allow wrapping */}
         <span className={cn('font-mono text-[13.5px] leading-6 min-w-0 flex-1', isError && 'text-destructive')}>
-          {isStreaming ? (
+          {isStreaming || (isAskUserQuestion && !result) ? (
             <>
               {activeVerb} <span className="text-muted-foreground break-all">{displayText}</span>...
             </>
@@ -360,6 +367,18 @@ export function ToolUseBlock({ name, input, result, isError, isStreaming, classN
           <span className="text-muted-foreground text-xs shrink-0 mt-1">
             ({resultSummary})
           </span>
+        )}
+
+        {/* Open button for AskUserQuestion during streaming */}
+        {showOpenButton && (
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={onOpenPanel}
+            className="shrink-0 h-6 px-2 text-xs"
+          >
+            Open
+          </Button>
         )}
 
         {isError && <AlertCircle className="size-3.5 text-destructive shrink-0 mt-1" />}

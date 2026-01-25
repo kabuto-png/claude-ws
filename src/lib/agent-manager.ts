@@ -403,15 +403,19 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
         abortController: controller,
         // canUseTool callback - pauses streaming when AskUserQuestion is called
         canUseTool: async (toolName: string, input: Record<string, unknown>) => {
+          console.log('[AgentManager] canUseTool called:', { toolName, attemptId });
           // Handle AskUserQuestion tool - pause and wait for user input
           if (toolName === 'AskUserQuestion') {
+            console.log('[AgentManager] AskUserQuestion detected', { attemptId, input });
             // Prevent duplicate questions for same attempt
             if (this.pendingQuestions.has(attemptId)) {
+              console.log('[AgentManager] Duplicate question blocked for', attemptId);
               return { behavior: 'deny' as const, message: 'Duplicate question' };
             }
 
             const toolUseId = `ask-${Date.now()}`;
             const questions = (input.questions as unknown[]) || [];
+            console.log('[AgentManager] Emitting question event:', { attemptId, toolUseId, questionCount: questions.length });
 
             // Emit question event to frontend (streaming is paused here)
             this.emit('question', { attemptId, toolUseId, questions });

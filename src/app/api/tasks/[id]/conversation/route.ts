@@ -10,6 +10,7 @@ interface ConversationTurn {
   attemptId: string;
   timestamp: number;
   files?: AttemptFile[];
+  attemptStatus?: string;  // Status of the attempt: 'running', 'completed', 'failed', etc.
 }
 
 export async function GET(
@@ -42,6 +43,7 @@ export async function GET(
         attemptId: attempt.id,
         timestamp: attempt.createdAt,
         files: files.length > 0 ? files : undefined,
+        attemptStatus: attempt.status,  // Include attempt status
       });
 
       // Get all JSON logs for this attempt
@@ -62,8 +64,18 @@ export async function GET(
       for (const log of logs) {
         if (log.type === 'json') {
           try {
-            const parsed = JSON.parse(log.content) as ClaudeOutput;
+            const parsed = JSON.parse(log.content) as ClaudeOutput & { type?: string };
             if (parsed.type === 'system') continue;
+
+            // Handle user_answer logs - these are the user's responses to questions
+            // Display them as assistant messages showing what was answered
+            if ((parsed as any).type === 'user_answer') {
+              allContentBlocks.push({
+                type: 'text' as const,
+                text: (parsed as any).displayText || JSON.stringify(parsed)
+              });
+              continue;
+            }
 
             // Collect content blocks from assistant messages
             if (parsed.type === 'assistant' && parsed.message?.content) {
@@ -131,6 +143,7 @@ export async function GET(
           messages,
           attemptId: attempt.id,
           timestamp: attempt.createdAt,
+          attemptStatus: attempt.status,  // Include attempt status
         });
       }
     }

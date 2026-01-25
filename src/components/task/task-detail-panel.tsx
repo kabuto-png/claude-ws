@@ -51,6 +51,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
   const [hasSentFirstMessage, setHasSentFirstMessage] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [shellPanelExpanded, setShellPanelExpanded] = useState(false);
+  const [showQuestionPrompt, setShowQuestionPrompt] = useState(false);
   const [isDetached, setIsDetached] = useState(() => {
     if (typeof window === 'undefined') return false;
     try {
@@ -190,6 +191,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
     setHasSentFirstMessage(false);
     setCurrentAttemptFiles([]);
     setShellPanelExpanded(false);
+    setShowQuestionPrompt(false);
     lastCompletedTaskRef.current = null;
     hasAutoStartedRef.current = false;
 
@@ -199,6 +201,15 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
       promptInputRef.current?.focus();
     }, 100);
   }, [selectedTask?.id]);
+
+  // Auto-show question prompt when activeQuestion appears
+  useEffect(() => {
+    console.log('[TaskDetailPanel] activeQuestion changed:', activeQuestion);
+    if (activeQuestion) {
+      console.log('[TaskDetailPanel] Setting showQuestionPrompt to true');
+      setShowQuestionPrompt(true);
+    }
+  }, [activeQuestion]);
 
   // Listen for rewind-complete event to soft refresh conversation
   useEffect(() => {
@@ -292,6 +303,8 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
         currentPrompt={currentPrompt || undefined}
         currentFiles={isRunning ? currentAttemptFiles : undefined}
         isRunning={isRunning}
+        activeQuestion={activeQuestion}
+        onOpenQuestion={() => setShowQuestionPrompt(true)}
       />
     </div>
   );
@@ -302,21 +315,41 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
       <Separator />
       {/* Prompt Input with Interactive Command Overlay or Question Prompt */}
       <div className="relative">
-        {activeQuestion ? (
+        {showQuestionPrompt ? (
           <div className="border-t bg-muted/30">
-            <QuestionPrompt
-              questions={activeQuestion.questions}
-              onAnswer={(answers) => {
-                // Move task to In Progress when answering a question
-                if (selectedTask?.status !== 'in_progress') {
-                  moveTaskToInProgress(selectedTask.id);
-                }
-                // Pass questions and answers in SDK format
-                // answers is Record<string, string> keyed by question text
-                answerQuestion(activeQuestion.questions, answers as Record<string, string>);
-              }}
-              onCancel={cancelQuestion}
-            />
+            {activeQuestion ? (
+              <>
+                {console.log('[TaskDetailPanel] Rendering QuestionPrompt with questions:', activeQuestion.questions)}
+                <QuestionPrompt
+                  questions={activeQuestion.questions}
+                  onAnswer={(answers) => {
+                    // Move task to In Progress when answering a question
+                    if (selectedTask?.status !== 'in_progress') {
+                      moveTaskToInProgress(selectedTask.id);
+                    }
+                    // Pass questions and answers in SDK format
+                    // answers is Record<string, string> keyed by question text
+                    answerQuestion(activeQuestion.questions, answers as Record<string, string>);
+                    setShowQuestionPrompt(false);
+                  }}
+                  onCancel={() => {
+                    cancelQuestion();
+                    setShowQuestionPrompt(false);
+                  }}
+                />
+              </>
+            ) : (
+              <>
+                {console.log('[TaskDetailPanel] Rendering loading state')}
+                {/* Loading state while waiting for question data */}
+                <div className="py-8 px-4 text-center">
+                  <div className="inline-flex items-center gap-2 text-muted-foreground text-sm">
+                    <div className="size-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    <span>Loading question...</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         ) : shellPanelExpanded && currentProjectId ? (
           /* Shell Panel - replaces input when expanded */

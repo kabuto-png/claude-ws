@@ -6,8 +6,20 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { MessageBlock } from '@/components/claude/message-block';
 import { ToolUseBlock } from '@/components/claude/tool-use-block';
 import { RunningDots, useRandomStatusVerb } from '@/components/ui/running-dots';
+import { PendingQuestionIndicator } from '@/components/task/pending-question-indicator';
 import { cn } from '@/lib/utils';
 import type { ClaudeOutput, ClaudeContentBlock, AttemptFile, PendingFile } from '@/types';
+
+interface ActiveQuestion {
+  attemptId: string;
+  toolUseId: string;
+  questions: Array<{
+    question: string;
+    header: string;
+    options: Array<{ label: string; description: string }>;
+    multiSelect: boolean;
+  }>;
+}
 
 interface ConversationTurn {
   type: 'user' | 'assistant';
@@ -25,6 +37,8 @@ interface ConversationViewProps {
   currentPrompt?: string;
   currentFiles?: PendingFile[];
   isRunning: boolean;
+  activeQuestion?: ActiveQuestion | null;
+  onOpenQuestion?: () => void;
   className?: string;
   onHistoryLoaded?: (hasHistory: boolean) => void;
 }
@@ -119,6 +133,8 @@ export function ConversationView({
   currentPrompt,
   currentFiles,
   isRunning,
+  activeQuestion,
+  onOpenQuestion,
   className,
 }: ConversationViewProps) {
   const scrollAreaRef = useRef<HTMLDivElement>(null);
@@ -446,6 +462,7 @@ export function ConversationView({
           result={toolResult?.result}
           isError={toolResult?.isError}
           isStreaming={executing}
+          onOpenPanel={block.name === 'AskUserQuestion' ? onOpenQuestion : undefined}
         />
       );
     }
@@ -490,6 +507,7 @@ export function ConversationView({
           result={toolResult?.result}
           isError={toolResult?.isError}
           isStreaming={isExecuting}
+          onOpenPanel={output.tool_name === 'AskUserQuestion' ? onOpenQuestion : undefined}
         />
       );
     }
@@ -665,6 +683,14 @@ export function ConversationView({
               <div className="space-y-4 w-full max-w-full overflow-hidden">
                 {currentMessages.map((msg, idx) => renderMessage(msg, idx, true, currentMessages))}
               </div>
+
+              {/* Pending question indicator - shown when question is interrupted */}
+              {activeQuestion && onOpenQuestion && (
+                <PendingQuestionIndicator
+                  questions={activeQuestion.questions}
+                  onOpen={onOpenQuestion}
+                />
+              )}
             </>
           )}
 

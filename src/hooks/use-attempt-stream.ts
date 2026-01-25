@@ -331,6 +331,7 @@ export function useAttemptStream(
     });
 
     socketInstance.on('question:ask', (data: any) => {
+      console.log('[useAttemptStream] Received question:ask event', data);
       setActiveQuestion({ attemptId: data.attemptId, toolUseId: data.toolUseId, questions: data.questions });
     });
 
@@ -353,33 +354,175 @@ export function useAttemptStream(
     // Don't clear currentTaskIdRef here - we'll update it in checkRunningAttempt
   }, [taskId]);
 
+  // Helper to scan messages for unanswered AskUserQuestion tools
+  const checkForUnansweredQuestion = useCallback((messages: ClaudeOutput[], attemptId: string) => {
+    console.log('[checkForUnansweredQuestion] Scanning messages', {
+      messageCount: messages.length,
+      attemptId
+    });
+
+    // Build a set of tool_use_ids that have results
+    const answeredToolIds = new Set<string>();
+    for (const msg of messages) {
+      if (msg.type === 'tool_result' && msg.tool_data?.tool_use_id) {
+        answeredToolIds.add(String(msg.tool_data.tool_use_id));
+      }
+    }
+    console.log('[checkForUnansweredQuestion] Answered tool IDs', Array.from(answeredToolIds));
+
+    // Find first unanswered AskUserQuestion
+    for (const msg of messages) {
+      console.log('[checkForUnansweredQuestion] Checking message', { type: msg.type, id: (msg as any).id });
+
+      if (msg.type === 'tool_use' && msg.tool_name === 'AskUserQuestion' && msg.id) {
+        console.log('[checkForUnansweredQuestion] Found AskUserQuestion tool_use', {
+          id: msg.id,
+          isAnswered: answeredToolIds.has(msg.id)
+        });
+        if (!answeredToolIds.has(msg.id)) {
+          // Found unanswered question - restore activeQuestion state
+          const questions = (msg as any).tool_data?.questions;
+          console.log('[checkForUnansweredQuestion] Tool data questions', questions);
+          if (questions && Array.isArray(questions)) {
+            console.log('[useAttemptStream] Restoring unanswered question from loaded messages', {
+              toolUseId: msg.id,
+              attemptId,
+              questionCount: questions.length
+            });
+            setActiveQuestion({
+              attemptId,
+              toolUseId: msg.id,
+              questions
+            });
+            return; // Only restore the first unanswered question
+          }
+        }
+      }
+      // Also check assistant messages with content blocks
+      if (msg.type === 'assistant' && msg.message?.content) {
+        console.log('[checkForUnansweredQuestion] Checking assistant content blocks', {
+          contentLength: msg.message.content.length
+        });
+        for (const block of msg.message.content) {
+          console.log('[checkForUnansweredQuestion] Content block', {
+            type: (block as any).type,
+            name: (block as any).name,
+            id: (block as any).id
+          });
+          if ((block as any).type === 'tool_use' &&
+              (block as any).name === 'AskUserQuestion' &&
+              (block as any).id) {
+            const toolUseId = String((block as any).id);
+            console.log('[checkForUnansweredQuestion] Found AskUserQuestion in content', {
+              toolUseId,
+              isAnswered: answeredToolIds.has(toolUseId)
+            });
+            if (!answeredToolIds.has(toolUseId)) {
+              const questions = (block as any).input?.questions;
+              console.log('[checkForUnansweredQuestion] Input questions', questions);
+              if (questions && Array.isArray(questions)) {
+                console.log('[useAttemptStream] Restoring unanswered question from assistant content', {
+                  toolUseId,
+                  attemptId,
+                  questionCount: questions.length
+                });
+                setActiveQuestion({
+                  attemptId,
+                  toolUseId,
+                  questions
+                });
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+    console.log('[checkForUnansweredQuestion] No unanswered question found');
+  }, []);
+
   // Check for running attempt on mount/taskId change
   useEffect(() => {
-    if (!taskId || !isConnected) return;
-    console.log('[useAttemptStream] checkRunningAttempt triggered', { taskId, isConnected });
+    if (!taskId) return;
     const checkRunningAttempt = async () => {
       try {
         const res = await fetch(`/api/tasks/${taskId}/running-attempt`);
         if (!res.ok) return;
         const data = await res.json();
-        console.log('[useAttemptStream] running-attempt API response', data);
         if (data.attempt && data.attempt.status === 'running') {
-          console.log('[useAttemptStream] Found running attempt, subscribing...', data.attempt.id);
           currentTaskIdRef.current = taskId;
           currentAttemptIdRef.current = data.attempt.id; // CRITICAL: Sync ref BEFORE state for immediate filtering
           setCurrentAttemptId(data.attempt.id);
           setCurrentPrompt(data.attempt.prompt);
-          setMessages((data.messages || []).map((m: any) => ({
+          const loadedMessages = (data.messages || []).map((m: any) => ({
             ...m,
             _attemptId: data.attempt.id,
             _msgId: Math.random().toString(36)
-          })));
+          }));
+          setMessages(loadedMessages);
           setIsRunning(true);
           addRunningTask(taskId);
-          socketRef.current?.emit('attempt:subscribe', { attemptId: data.attempt.id });
-          console.log('[useAttemptStream] Emitted attempt:subscribe for', data.attempt.id);
+
+          // Check for unanswered AskUserQuestion in loaded messages
+          // This restores activeQuestion state after server restart
+          console.log('[useAttemptStream] About to call checkForUnansweredQuestion');
+          checkForUnansweredQuestion(loadedMessages, data.attempt.id);
+
+          // Only subscribe if socket is connected
+          if (isConnected) {
+            socketRef.current?.emit('attempt:subscribe', { attemptId: data.attempt.id });
+            console.log('[useAttemptStream] Emitted attempt:subscribe for', data.attempt.id);
+          } else {
+            console.log('[useAttemptStream] Socket not connected, skipping subscribe (will subscribe on reconnect)');
+          }
         } else {
-          // No running attempt for this task, ensure currentTaskIdRef is updated
+          console.log('[useAttemptStream] No running attempt found, checking conversation history for unanswered questions');
+          // No running attempt, but check conversation history for unanswered AskUserQuestion
+          // This handles the case where the attempt status changed but question wasn't answered
+          try {
+            const historyRes = await fetch(`/api/tasks/${taskId}/conversation`);
+            if (historyRes.ok) {
+              const historyData = await historyRes.json();
+              console.log('[useAttemptStream] Conversation history loaded', {
+                turnCount: historyData.turns?.length
+              });
+              // Only check the MOST RECENT turn (last one), not all history
+              // This avoids showing old questions from previous conversations
+              const turns = historyData.turns || [];
+              if (turns.length > 0) {
+                const lastTurn = turns[turns.length - 1];
+                console.log('[useAttemptStream] Checking only the most recent turn', {
+                  attemptId: lastTurn.attemptId,
+                  attemptStatus: lastTurn.attemptStatus,
+                  messageCount: lastTurn.messages?.length
+                });
+                // Always restore unanswered questions from the most recent turn
+                // But only if the attempt is actually alive (has active agent process)
+                if (lastTurn.attemptId) {
+                  const lastTurnMessages = lastTurn.messages || [];
+                  // First check if the attempt is actually alive (has active agent)
+                  try {
+                    const aliveRes = await fetch(`/api/attempts/${lastTurn.attemptId}/alive`);
+                    if (aliveRes.ok) {
+                      const aliveData = await aliveRes.json();
+                      console.log('[useAttemptStream] Attempt alive check:', aliveData);
+                      if (aliveData.alive) {
+                        // Attempt has an active agent, can restore the question
+                        checkForUnansweredQuestion(lastTurnMessages, lastTurn.attemptId);
+                      } else {
+                        console.log('[useAttemptStream] Attempt is not alive (server restarted), not restoring question');
+                      }
+                    }
+                  } catch (aliveError) {
+                    console.error('[useAttemptStream] Failed to check attempt alive status:', aliveError);
+                  }
+                }
+              }
+            }
+          } catch (historyError) {
+            console.error('[useAttemptStream] Failed to load conversation history:', historyError);
+          }
+          // Ensure currentTaskIdRef is updated
           currentTaskIdRef.current = taskId;
         }
       } catch (error) {
@@ -389,7 +532,7 @@ export function useAttemptStream(
       }
     };
     checkRunningAttempt();
-  }, [taskId, isConnected]);
+  }, [taskId, checkForUnansweredQuestion]); // Remove isConnected from deps - we handle it inside
 
   const startAttempt = useCallback((taskId: string, prompt: string, displayPrompt?: string, fileIds?: string[]) => {
     const socket = socketRef.current;
@@ -407,18 +550,50 @@ export function useAttemptStream(
     socket.emit('attempt:start', { taskId, prompt, displayPrompt, fileIds });
   }, [isConnected]);
 
-  const answerQuestion = useCallback((questions: Question[], answers: Record<string, string>) => {
+  const answerQuestion = useCallback(async (questions: Question[], answers: Record<string, string>) => {
     const socket = socketRef.current;
     if (!socket || !activeQuestion) return;
+
+    const attemptId = activeQuestion.attemptId;
+
     // Send SDK format: { attemptId, questions, answers }
     // The agent-manager's canUseTool callback will resume streaming
     socket.emit('question:answer', {
-      attemptId: activeQuestion.attemptId,
+      attemptId,
       questions,
       answers,
     });
+
+    // Save answer to database for persistence across reloads
+    try {
+      await fetch(`/api/attempts/${attemptId}/answer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questions, answers })
+      });
+    } catch (err) {
+      console.error('Failed to save answer to database:', err);
+    }
+
+    // Add a message showing the user's answer to the conversation
+    // This creates a record of what the user chose
+    const answerText = Object.entries(answers)
+      .map(([question, answer]) => `${question}: **${answer}**`)
+      .join('\n');
+    setMessages((prev) => [
+      ...prev,
+      {
+        type: 'assistant' as const,
+        message: {
+          role: 'assistant' as const,
+          content: [{ type: 'text' as const, text: `✓ **You answered:**\n${answerText}` }]
+        },
+        _attemptId: attemptId,
+        _msgId: Math.random().toString(36)
+      }
+    ]);
+
     // Delay hiding the question dialog to prevent click event from hitting Stop button
-    // (Stop button renders at similar position when PromptInput replaces QuestionPrompt)
     setTimeout(() => setActiveQuestion(null), 250);
   }, [activeQuestion]);
 
