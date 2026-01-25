@@ -146,7 +146,7 @@ export function FileTreeItem({
 
   const handleRenameBlur = () => {
     if (!isSaving) {
-      submitRename();
+      cancelRename();
     }
   };
 
@@ -220,7 +220,7 @@ export function FileTreeItem({
               onKeyDown={handleRenameKeyDown}
               onBlur={handleRenameBlur}
               disabled={isSaving}
-              className="h-6 px-2 py-0 text-sm bg-background dark:bg-background border-border"
+              className="h-6 px-2 py-0 text-sm bg-white dark:bg-slate-900 border-2 border-primary text-foreground dark:text-foreground"
               onClick={(e) => e.stopPropagation()}
             />
             {isSaving && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
