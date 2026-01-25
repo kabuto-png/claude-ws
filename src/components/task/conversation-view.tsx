@@ -548,8 +548,9 @@ export function ConversationView({
 
   // User prompt - simple muted box with file thumbnails
   const renderUserTurn = (turn: ConversationTurn) => (
-    <div key={`user-${turn.attemptId}`} className="bg-muted/40 rounded-lg px-4 py-3 text-[15px] leading-relaxed break-words space-y-3 w-full max-w-full overflow-hidden">
-      <div>{turn.prompt}</div>
+    <div key={`user-${turn.attemptId}`} className="flex justify-end w-full max-w-full">
+      <div className="bg-primary/10 rounded-lg px-4 py-3 text-[15px] leading-relaxed break-words space-y-3 max-w-[85%] overflow-hidden">
+        <div>{turn.prompt}</div>
       {turn.files && turn.files.length > 0 && (
         <div className="flex flex-wrap gap-2 pt-1">
           {turn.files.map((file) => (
@@ -587,6 +588,7 @@ export function ConversationView({
       <div className="flex justify-end">
         <span className="text-xs text-muted-foreground">{formatTimestamp(turn.timestamp)}</span>
       </div>
+    </div>
     </div>
   );
 
@@ -644,8 +646,9 @@ export function ConversationView({
             <>
               {/* User prompt if not in history */}
               {!filteredHistoricalTurns.some(t => t.attemptId === currentAttemptId && t.type === 'user') && currentPrompt && (
-                <div className="bg-muted/40 rounded-lg px-4 py-3 text-[15px] leading-relaxed break-words space-y-3 w-full max-w-full overflow-hidden">
-                  <div>{currentPrompt}</div>
+                <div className="flex justify-end w-full max-w-full">
+                  <div className="bg-primary/10 rounded-lg px-4 py-3 text-[15px] leading-relaxed break-words space-y-3 max-w-[85%] overflow-hidden">
+                    <div>{currentPrompt}</div>
                   {currentFiles && currentFiles.length > 0 && (
                     <div className="flex flex-wrap gap-2 pt-1">
                       {currentFiles.map((file) => {
@@ -677,6 +680,7 @@ export function ConversationView({
                   <div className="flex justify-end">
                     <span className="text-xs text-muted-foreground">{formatTimestamp(Date.now())}</span>
                   </div>
+                </div>
                 </div>
               )}
               {/* Streaming response */}

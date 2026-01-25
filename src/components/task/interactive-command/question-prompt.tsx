@@ -165,7 +165,18 @@ export function QuestionPrompt({ questions, onAnswer, onCancel }: QuestionPrompt
                 if (isTypeOption) {
                   setIsTyping(true);
                   setTimeout(() => inputRef.current?.focus(), 0);
-                } else if (!currentQuestion.multiSelect) {
+                } else if (currentQuestion.multiSelect) {
+                  // Toggle selection for multi-select
+                  setSelectedMulti((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(index)) {
+                      next.delete(index);
+                    } else {
+                      next.add(index);
+                    }
+                    return next;
+                  });
+                } else {
                   handleSubmitAnswer(currentQuestion.options[index].label);
                 }
               }}
