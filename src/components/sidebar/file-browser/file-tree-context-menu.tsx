@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Trash, Download, Copy } from 'lucide-react';
+import { Trash, Download, Copy, Loader2 } from 'lucide-react';
 import {
   ContextMenu,
   ContextMenuContent,
@@ -19,6 +19,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useSidebarStore } from '@/stores/sidebar-store';
+import { cn } from '@/lib/utils';
 import type { FileEntry } from '@/types';
 
 interface FileTreeContextMenuProps {
@@ -140,9 +141,13 @@ export function FileTreeContextMenu({
         <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
         <ContextMenuContent>
           <ContextMenuItem onClick={handleDownload} disabled={isDownloading}>
-            <Download className="mr-2 size-4" />
+            {isDownloading ? (
+              <Loader2 className="mr-2 size-4 animate-spin" />
+            ) : (
+              <Download className="mr-2 size-4" />
+            )}
             Download
-            {isDownloading && <span className="ml-auto text-xs">...</span>}
+            {isDownloading && <span className="ml-auto text-xs text-muted-foreground">Preparing...</span>}
           </ContextMenuItem>
           <ContextMenuItem onClick={handleCopyPath}>
             <Copy className="mr-2 size-4" />
