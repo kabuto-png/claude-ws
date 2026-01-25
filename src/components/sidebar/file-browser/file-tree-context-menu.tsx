@@ -10,6 +10,10 @@ import {
   ContextMenuTrigger,
 } from '@/components/ui/context-menu';
 import {
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu';
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -23,6 +27,7 @@ import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useSidebarStore } from '@/stores/sidebar-store';
 import type { FileEntry } from '@/types';
+import type { ReactNode } from 'react';
 
 interface FileTreeContextMenuProps {
   /** File or folder entry to show context menu for */
@@ -39,14 +44,23 @@ interface FileTreeContextMenuProps {
   children: React.ReactNode;
 }
 
-export function FileTreeContextMenu({
+interface FileTreeContextMenuContentProps {
+  entry: FileEntry;
+  rootPath: string;
+  onDelete?: () => void;
+  onRename?: () => void;
+  onRefresh?: () => void;
+  itemType?: 'context' | 'dropdown';
+}
+
+export function FileTreeContextMenuContent({
   entry,
   rootPath,
   onDelete,
   onRename,
   onRefresh,
-  children,
-}: FileTreeContextMenuProps) {
+  itemType = 'context',
+}: FileTreeContextMenuContentProps) {
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
   const [createType, setCreateType] = useState<'file' | 'folder'>('file');
@@ -60,6 +74,10 @@ export function FileTreeContextMenu({
 
   const fullPath = `${rootPath}/${entry.path}`;
   const isDirectory = entry.type === 'directory';
+
+  // Select the appropriate item component based on type
+  const MenuItem = itemType === 'context' ? ContextMenuItem : DropdownMenuItem;
+  const MenuSeparator = itemType === 'context' ? ContextMenuSeparator : DropdownMenuSeparator;
 
   // Focus input when dialog opens
   useEffect(() => {
@@ -229,50 +247,45 @@ export function FileTreeContextMenu({
 
   return (
     <>
-      <ContextMenu>
-        <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-        <ContextMenuContent>
-          {/* Show create options only for directories */}
-          {isDirectory && (
-            <>
-              <ContextMenuItem onClick={() => openCreateDialog('file')}>
-                <FilePlus className="mr-2 size-4" />
-                New File
-              </ContextMenuItem>
-              <ContextMenuItem onClick={() => openCreateDialog('folder')}>
-                <FolderPlus className="mr-2 size-4" />
-                New Folder
-              </ContextMenuItem>
-              <ContextMenuSeparator />
-            </>
-          )}
+      {/* Show create options only for directories */}
+      {isDirectory && (
+        <>
+          <MenuItem onClick={() => openCreateDialog('file')}>
+            <FilePlus className="mr-2 size-4" />
+            New File
+          </MenuItem>
+          <MenuItem onClick={() => openCreateDialog('folder')}>
+            <FolderPlus className="mr-2 size-4" />
+            New Folder
+          </MenuItem>
+          <MenuSeparator />
+        </>
+      )}
 
-          <ContextMenuItem onClick={handleDownload} disabled={isDownloading}>
-            {isDownloading ? (
-              <Loader2 className="mr-2 size-4 animate-spin" />
-            ) : (
-              <Download className="mr-2 size-4" />
-            )}
-            Download
-            {isDownloading && <span className="ml-auto text-xs text-muted-foreground">Preparing...</span>}
-          </ContextMenuItem>
-          <ContextMenuItem onClick={handleCopyPath}>
-            <Copy className="mr-2 size-4" />
-            Copy Path
-          </ContextMenuItem>
-          <ContextMenuItem onClick={onRename}>
-            <FileText className="mr-2 size-4" />
-            Rename
-          </ContextMenuItem>
-          <ContextMenuItem
-            onClick={() => setDeleteDialog(true)}
-            className="text-destructive focus:text-destructive"
-          >
-            <Trash className="mr-2 size-4" />
-            Delete
-          </ContextMenuItem>
-        </ContextMenuContent>
-      </ContextMenu>
+      <MenuItem onClick={handleDownload} disabled={isDownloading}>
+        {isDownloading ? (
+          <Loader2 className="mr-2 size-4 animate-spin" />
+        ) : (
+          <Download className="mr-2 size-4" />
+        )}
+        Download
+        {isDownloading && <span className="ml-auto text-xs text-muted-foreground">Preparing...</span>}
+      </MenuItem>
+      <MenuItem onClick={handleCopyPath}>
+        <Copy className="mr-2 size-4" />
+        Copy Path
+      </MenuItem>
+      <MenuItem onClick={onRename}>
+        <FileText className="mr-2 size-4" />
+        Rename
+      </MenuItem>
+      <MenuItem
+        onClick={() => setDeleteDialog(true)}
+        className="text-destructive focus:text-destructive"
+      >
+        <Trash className="mr-2 size-4" />
+        Delete
+      </MenuItem>
 
       <Dialog open={deleteDialog} onOpenChange={setDeleteDialog}>
         <DialogContent>
@@ -340,5 +353,30 @@ export function FileTreeContextMenu({
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+export function FileTreeContextMenu({
+  entry,
+  rootPath,
+  onDelete,
+  onRename,
+  onRefresh,
+  children,
+}: FileTreeContextMenuProps) {
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <FileTreeContextMenuContent
+          entry={entry}
+          rootPath={rootPath}
+          onDelete={onDelete}
+          onRename={onRename}
+          onRefresh={onRefresh}
+          itemType="context"
+        />
+      </ContextMenuContent>
+    </ContextMenu>
   );
 }

@@ -1,10 +1,16 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { ChevronRight, ChevronDown, Loader2 } from 'lucide-react';
+import { ChevronRight, ChevronDown, Loader2, MoreVertical } from 'lucide-react';
 import { FileIcon } from './file-icon';
-import { FileTreeContextMenu } from './file-tree-context-menu';
+import { FileTreeContextMenu, FileTreeContextMenuContent } from './file-tree-context-menu';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { FileEntry } from '@/types';
@@ -37,6 +43,8 @@ export function FileTreeItem({
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(entry.name);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPressed, setIsPressed] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isDirectory = entry.type === 'directory';
@@ -56,6 +64,11 @@ export function FileTreeItem({
       return;
     }
     e.stopPropagation();
+
+    // Immediate visual feedback
+    setIsPressed(true);
+    setTimeout(() => setIsPressed(false), 150);
+
     if (isDirectory) {
       onToggle();
     } else {
@@ -138,22 +151,29 @@ export function FileTreeItem({
   };
 
   return (
-    <FileTreeContextMenu
-      entry={entry}
-      rootPath={rootPath}
-      onDelete={onRefresh}
-      onRename={startRename}
-      onRefresh={onRefresh}
-    >
+    <>
+      <FileTreeContextMenu
+        entry={entry}
+        rootPath={rootPath}
+        onDelete={onRefresh}
+        onRename={startRename}
+        onRefresh={onRefresh}
+      >
       <div
         className={cn(
-          'flex items-center gap-1 py-1 px-2 cursor-pointer rounded-sm text-sm relative',
-          'hover:bg-accent/50 transition-colors',
+          'flex items-center gap-1 py-1 px-2 cursor-pointer rounded-sm text-sm relative group',
+          // Hover: only apply when not selected
+          !isSelected && 'hover:bg-accent/50 transition-colors',
+          // Selected state
           isSelected && 'bg-primary/20 text-primary-foreground dark:bg-primary/30',
+          isSelected && 'hover:bg-primary/30 dark:hover:bg-primary/40',
+          isPressed && 'bg-primary/10',
           isRenaming && 'bg-accent cursor-default'
         )}
         style={{ paddingLeft: `${level * 16 + 8}px` }}
         onClick={handleClick}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
       >
         {/* Indent guide lines */}
         {level > 0 && Array.from({ length: level }).map((_, i) => (
@@ -200,7 +220,7 @@ export function FileTreeItem({
               onKeyDown={handleRenameKeyDown}
               onBlur={handleRenameBlur}
               disabled={isSaving}
-              className="h-6 px-1 py-0 text-sm"
+              className="h-6 px-2 py-0 text-sm bg-background dark:bg-background border-border"
               onClick={(e) => e.stopPropagation()}
             />
             {isSaving && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
@@ -222,7 +242,38 @@ export function FileTreeItem({
             {entry.gitStatus}
           </span>
         )}
+
+        {/* Context menu button (shows on hover/selection) */}
+        {!isRenaming && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  'h-5 w-5 p-0 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity',
+                  'hover:bg-accent data-[state=open]:bg-accent',
+                  isSelected && 'opacity-100'
+                )}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="size-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <FileTreeContextMenuContent
+                entry={entry}
+                rootPath={rootPath}
+                onDelete={onRefresh}
+                onRename={startRename}
+                onRefresh={onRefresh}
+                itemType="dropdown"
+              />
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </FileTreeContextMenu>
+    </>
   );
 }

@@ -59,13 +59,20 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
 
   const handleFileClick = useCallback(
     (path: string, lineNumber?: number, column?: number, matchLength?: number) => {
+      // Immediate selection update (synchronous, high priority)
       setSelectedFile(path);
-      openTab(path); // Open in tab system (will switch to existing tab if already open)
+
+      // Open tab immediately (synchronous for instant feedback)
+      openTab(path);
+
+      // Set editor position immediately if provided
       if (lineNumber !== undefined) {
         setEditorPosition({ lineNumber, column, matchLength });
       } else {
         setEditorPosition(null);
       }
+
+      // Call external callback
       onFileSelect?.(path, lineNumber, column, matchLength);
     },
     [setSelectedFile, openTab, setEditorPosition, onFileSelect]
