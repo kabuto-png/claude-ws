@@ -90,6 +90,8 @@ export function FileTree({ onFileSelect }: FileTreeProps) {
             isSelected={isSelected}
             onToggle={() => toggleFolder(entry.path)}
             onClick={() => handleFileClick(entry.path)}
+            rootPath={activeProject?.path || ''}
+            onRefresh={handleRefresh}
           />
           {entry.type === 'directory' && isExpanded && entry.children && (
             <div>{renderTree(entry.children, level + 1)}</div>

@@ -49,6 +49,7 @@ interface SidebarActions {
   // Multi-tab actions (replaces setPreviewFile/closePreview)
   openTab: (filePath: string) => void;
   closeTab: (tabId: string) => void;
+  closeTabByFilePath: (filePath: string) => void;
   closeAllTabs: () => void;
   setActiveTabId: (tabId: string) => void;
   updateTabDirty: (tabId: string, isDirty: boolean) => void;
@@ -148,6 +149,22 @@ export const useSidebarStore = create<SidebarStore>()(
           // If closing active tab, select adjacent tab
           if (tabId === state.activeTabId) {
             const idx = state.openTabs.findIndex((t) => t.id === tabId);
+            newActiveId = newTabs[idx]?.id ?? newTabs[idx - 1]?.id ?? null;
+          }
+          return { openTabs: newTabs, activeTabId: newActiveId };
+        }),
+
+      closeTabByFilePath: (filePath) =>
+        set((state) => {
+          // Find tab with matching filePath (check both id and filePath fields)
+          const tab = state.openTabs.find((t) => t.filePath === filePath || t.id === filePath);
+          if (!tab) return state;
+
+          const newTabs = state.openTabs.filter((t) => t.id !== tab.id);
+          let newActiveId = state.activeTabId;
+          // If closing active tab, select adjacent tab
+          if (tab.id === state.activeTabId) {
+            const idx = state.openTabs.findIndex((t) => t.id === tab.id);
             newActiveId = newTabs[idx]?.id ?? newTabs[idx - 1]?.id ?? null;
           }
           return { openTabs: newTabs, activeTabId: newActiveId };

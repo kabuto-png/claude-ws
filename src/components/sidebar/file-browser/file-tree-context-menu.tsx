@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { useSidebarStore } from '@/stores/sidebar-store';
 import type { FileEntry } from '@/types';
 
 interface FileTreeContextMenuProps {
@@ -40,6 +41,7 @@ export function FileTreeContextMenu({
   const [deleteDialog, setDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const closeTabByFilePath = useSidebarStore((state) => state.closeTabByFilePath);
 
   const fullPath = `${rootPath}/${entry.path}`;
 
@@ -58,6 +60,11 @@ export function FileTreeContextMenu({
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || 'Delete failed');
+      }
+
+      // Close tab if file is open in editor
+      if (entry.type === 'file') {
+        closeTabByFilePath(fullPath);
       }
 
       toast.success(
