@@ -14,6 +14,26 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
+const isWindows = process.platform === 'win32';
+
+/**
+ * Convert Windows backslash paths to forward slashes for safe shell embedding.
+ * On Unix, this is a no-op since paths already use forward slashes.
+ */
+function toShellSafePath(p) {
+  return isWindows ? p.replace(/\\/g, '/') : p;
+}
+
+/**
+ * Cross-platform command existence check.
+ * Uses 'where' on Windows, 'which' on Unix.
+ */
+function whichCommand(cmd) {
+  const { execSync } = require('child_process');
+  const checker = isWindows ? 'where' : 'which';
+  execSync(`${checker} ${cmd}`, { stdio: 'ignore' });
+}
+
 // Load environment variables
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 
@@ -80,8 +100,7 @@ async function runMigrations() {
     if (!tsxCmd) {
       // Try global tsx
       try {
-        const { execSync } = require('child_process');
-        execSync('which tsx', { stdio: 'ignore' });
+        whichCommand('tsx');
         tsxCmd = 'tsx';
       } catch {
         throw new Error('tsx not found - this should not happen after dependency installation');
@@ -89,9 +108,13 @@ async function runMigrations() {
     }
 
     const { execSync } = require('child_process');
-    execSync(`"${tsxCmd}" -e "require('${dbPath}'); console.log('[Claude Workspace] ✓ Database ready');"`, {
+    // Use forward slashes in shell-embedded paths to avoid Windows backslash escape issues
+    const safeDbPath = toShellSafePath(dbPath);
+    const safeTsxCmd = toShellSafePath(tsxCmd);
+    execSync(`"${safeTsxCmd}" -e "require('${safeDbPath}'); console.log('[Claude Workspace] ✓ Database ready');"`, {
       cwd: packageRoot,
       stdio: 'inherit',
+      shell: true,
       env: { ...process.env }
     });
 
@@ -119,7 +142,7 @@ async function startServer() {
 
     let installCmd = 'npm install --production=false';
     try {
-      execSync('which pnpm', { stdio: 'ignore' });
+      whichCommand('pnpm');
       installCmd = 'pnpm install --no-frozen-lockfile';
     } catch {
       // pnpm not found, use npm
@@ -172,9 +195,10 @@ async function startServer() {
     const { execSync } = require('child_process');
     try {
       const nextBin = path.join(packageRoot, 'node_modules', '.bin', 'next');
+      const safeNextBin = toShellSafePath(nextBin);
 
       // Run next build using local binary directly
-      execSync(`"${nextBin}" build`, {
+      execSync(`"${safeNextBin}" build`, {
         cwd: packageRoot,
         stdio: 'inherit',
         shell: true,
@@ -218,8 +242,7 @@ async function startServer() {
   if (!tsxCmd) {
     try {
       // Try using tsx from global or local pnpm/npm
-      const { execSync } = require('child_process');
-      execSync('which tsx', { stdio: 'ignore' });
+      whichCommand('tsx');
       tsxCmd = 'tsx';
     } catch {
       console.error('[Claude Workspace] Error: tsx not found');
