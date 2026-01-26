@@ -7,6 +7,7 @@ on:
       - 'bin/**'
       - 'server.ts'
       - 'package.json'
+      - '.github/workflows/test-windows.yml'
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -28,12 +29,6 @@ jobs:
 
       - name: Verify CLI syntax
         run: node -c bin/claudekanban.js
-
-      - name: Test --version flag
-        run: node bin/claudekanban.js --version
-
-      - name: Test --help flag
-        run: node bin/claudekanban.js --help
 
       - name: Test path utilities (Windows backslash handling)
         shell: node {0}
@@ -88,9 +83,13 @@ jobs:
           console.log('\nAll path utility tests passed!');
 
       - name: Install dependencies
-        run: npm install --ignore-scripts
-        env:
-          npm_config_ignore_scripts: true
+        run: npm install
+
+      - name: Test CLI --version
+        run: node bin/claudekanban.js --version
+
+      - name: Test CLI --help
+        run: node bin/claudekanban.js --help
 
       - name: Test tsx discovery (cross-platform)
         shell: node {0}
