@@ -35,7 +35,7 @@ export function GitPanel() {
   const isComponentMountedRef = useRef(true);
   const fetchedPathRef = useRef<string | null>(null);
 
-  const fetchStatus = useCallback(async () => {
+  const fetchStatus = useCallback(async (forceRefresh = false) => {
     if (!activeProject?.path) {
       setStatus(null);
       setLoading(false);
@@ -43,8 +43,8 @@ export function GitPanel() {
       return;
     }
 
-    // Skip if already fetched this path
-    if (fetchedPathRef.current === activeProject.path) return;
+    // Skip if already fetched this path (unless force refresh)
+    if (!forceRefresh && fetchedPathRef.current === activeProject.path) return;
 
     if (!isComponentMountedRef.current) return;
 
@@ -111,7 +111,7 @@ export function GitPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectPath: activeProject.path, files: [filePath] }),
       });
-      fetchStatus();
+      fetchStatus(true);
     } catch (err) {
       console.error('Failed to stage file:', err);
     }
@@ -125,7 +125,7 @@ export function GitPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectPath: activeProject.path, files: [filePath] }),
       });
-      fetchStatus();
+      fetchStatus(true);
     } catch (err) {
       console.error('Failed to unstage file:', err);
     }
@@ -140,7 +140,7 @@ export function GitPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectPath: activeProject.path, files: [filePath] }),
       });
-      fetchStatus();
+      fetchStatus(true);
     } catch (err) {
       console.error('Failed to discard file:', err);
     }
@@ -154,7 +154,7 @@ export function GitPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectPath: activeProject.path, all: true }),
       });
-      fetchStatus();
+      fetchStatus(true);
     } catch (err) {
       console.error('Failed to stage all:', err);
     }
@@ -168,7 +168,7 @@ export function GitPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectPath: activeProject.path, all: true }),
       });
-      fetchStatus();
+      fetchStatus(true);
     } catch (err) {
       console.error('Failed to unstage all:', err);
     }
@@ -183,7 +183,7 @@ export function GitPanel() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ projectPath: activeProject.path, all: true }),
       });
-      fetchStatus();
+      fetchStatus(true);
     } catch (err) {
       console.error('Failed to discard all:', err);
     }
@@ -201,7 +201,7 @@ export function GitPanel() {
         const data = await res.json();
         throw new Error(data.error || 'Failed to add to .gitignore');
       }
-      fetchStatus();
+      fetchStatus(true);
     } catch (err) {
       console.error('Failed to add to .gitignore:', err);
       alert(err instanceof Error ? err.message : 'Failed to add to .gitignore');
@@ -235,7 +235,7 @@ export function GitPanel() {
       }
       setCommitTitle('');
       setCommitDescription('');
-      fetchStatus();
+      fetchStatus(true);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to commit');
     } finally {
@@ -283,7 +283,7 @@ export function GitPanel() {
         const data = await res.json();
         throw new Error(data.error || 'Failed to push');
       }
-      fetchStatus();
+      fetchStatus(true);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to push changes');
     } finally {
@@ -309,7 +309,7 @@ export function GitPanel() {
         throw new Error(data.error || 'Failed to checkout branch');
       }
 
-      await fetchStatus();
+      await fetchStatus(true);
     } catch (err) {
       throw err;
     }
