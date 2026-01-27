@@ -113,6 +113,7 @@ export interface BackgroundShellInfo {
   toolUseId: string;
   command: string;
   description?: string;
+  originalCommand?: string; // Full command including kill/nohup wrapper
 }
 
 /**
@@ -160,49 +161,8 @@ function detectAskUserQuestion(
   return undefined;
 }
 
-/**
- * Common background/long-running command patterns
- * These commands typically start servers or watchers that run indefinitely
- */
-const BACKGROUND_COMMAND_PATTERNS = [
-  // Dev servers
-  /npm\s+run\s+(dev|start|serve|watch)/i,
-  /yarn\s+(dev|start|serve|watch)/i,
-  /pnpm\s+(dev|start|serve|watch)/i,
-  /bun\s+(run\s+)?(dev|start|serve|watch)/i,
-  // npx commands that start servers
-  /npx\s+.*\s+start/i,
-  /npx\s+(directus|strapi|payload|keystone|medusa)\b/i,
-  // Direct node/python servers
-  /node\s+.*server/i,
-  /python\s+.*server/i,
-  /python\s+-m\s+http\.server/i,
-  // Framework CLIs
-  /next\s+dev/i,
-  /vite\s+(dev)?/i,
-  /nuxt\s+dev/i,
-  /remix\s+dev/i,
-  /astro\s+dev/i,
-  /ng\s+serve/i,
-  /vue-cli-service\s+serve/i,
-  // CMS/Backend CLIs
-  /directus\s+(start|dev)/i,
-  /strapi\s+(start|dev)/i,
-  // Other common patterns
-  /nodemon/i,
-  /ts-node-dev/i,
-  /webpack\s+(serve|watch)/i,
-  /live-server/i,
-  /http-server/i,
-  /serve\s+/i,
-];
-
-/**
- * Check if a command matches common background/long-running patterns
- */
-function isLikelyBackgroundCommand(command: string): boolean {
-  return BACKGROUND_COMMAND_PATTERNS.some(pattern => pattern.test(command));
-}
+// Note: BACKGROUND_COMMAND_PATTERNS removed - heuristic detection disabled
+// Use BGPID pattern or run_in_background=true instead
 
 /**
  * Log Write tool calls for debugging output format feature
@@ -226,7 +186,7 @@ function logWriteToolUse(content: SDKContentBlock[]): void {
  * Detection methods (in order of priority):
  * 1. Explicit: Bash tool_use with run_in_background=true
  * 2. Markdown: ```background-shell\ncommand\n``` in text blocks
- * 3. Heuristic: Bash tool_use with command matching common background patterns
+ * (Method 3 - Heuristic detection - DISABLED: caused duplicate process spawns)
  */
 function detectBackgroundShell(
   content: SDKContentBlock[]
@@ -276,23 +236,11 @@ function detectBackgroundShell(
     }
   }
 
-  // Method 3: Heuristic - detect common background command patterns
-  // This catches cases where SDK doesn't pass run_in_background but the command
-  // is clearly a long-running process (dev server, watch mode, etc.)
-  for (const block of content) {
-    if (block.type === 'tool_use' && block.name === 'Bash') {
-      const input = block.input as { command?: string; description?: string } | undefined;
-
-      if (input?.command && isLikelyBackgroundCommand(input.command)) {
-        console.log(`[SDK Adapter] Background shell detected via heuristic pattern: ${input.command.substring(0, 50)}`);
-        return {
-          toolUseId: block.id || '',
-          command: input.command,
-          description: input.description || 'Dev server / background process',
-        };
-      }
-    }
-  }
+  // Method 3: Heuristic detection DISABLED
+  // Reason: Causes duplicate process spawns because SDK executes the command first,
+  // then we spawn another. This leads to port conflicts and confusion.
+  // Use BGPID pattern (nohup <cmd> & echo "BGPID:$!") or run_in_background=true instead.
+  // See: system-prompt.ts for BGPID instructions given to Claude
 
   return undefined;
 }

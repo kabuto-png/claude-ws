@@ -8,11 +8,14 @@
 // Ensure file checkpointing is always enabled
 process.env.CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING = '1';
 
+// Enable SDK task system (opt-in feature since v0.2.19)
+process.env.CLAUDE_CODE_ENABLE_TASKS = 'true';
+
 import { EventEmitter } from 'events';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { query, type Query } from '@anthropic-ai/claude-agent-sdk';
 import type { ClaudeOutput } from '@/types';
 import { adaptSDKMessage, isValidSDKMessage, type BackgroundShellInfo, type SDKResultMessage } from './sdk-event-adapter';
 import { sessionManager } from './session-manager';
@@ -20,6 +23,7 @@ import { checkpointManager } from './checkpoint-manager';
 import { usageTracker } from './usage-tracker';
 import { workflowTracker } from './workflow-tracker';
 import { collectGitStats, gitStatsCache } from './git-stats-collector';
+import { getSystemPrompt } from './system-prompt';
 
 // MCP Server configuration types matching SDK's McpServerConfig union
 interface MCPStdioServerConfig {
@@ -192,6 +196,7 @@ export const DEFAULT_MODEL = 'opus' as const;
 interface AgentInstance {
   attemptId: string;
   controller: AbortController;
+  queryRef?: Query;  // SDK query reference for graceful close()
   startedAt: number;
   sessionId?: string;
 }
@@ -229,6 +234,7 @@ export interface AgentStartOptions {
   filePaths?: string[];
   outputFormat?: string;  // File extension: json, html, md, csv, tsv, txt, xml, etc.
   outputSchema?: string;
+  maxTurns?: number;  // Max conversation turns before stopping (undefined = unlimited)
 }
 
 /**
@@ -248,10 +254,24 @@ class AgentManager extends EventEmitter {
   }
 
   /**
+   * Check if command is a server/dev command that should run in background
+   */
+  private isServerCommand(command: string): boolean {
+    const patterns = [
+      /npm\s+run\s+(dev|start|serve)/i,
+      /yarn\s+(dev|start|serve)/i,
+      /pnpm\s+(dev|start|serve)/i,
+      /npx\s+(directus|strapi|next|vite|nuxt)/i,
+      /nohup\s+/i,
+    ];
+    return patterns.some(p => p.test(command));
+  }
+
+  /**
    * Start a new Claude Agent SDK query
    */
   async start(options: AgentStartOptions): Promise<void> {
-    const { attemptId, projectPath, prompt, sessionOptions, filePaths, outputFormat, outputSchema } = options;
+    const { attemptId, projectPath, prompt, sessionOptions, filePaths, outputFormat, outputSchema, maxTurns } = options;
 
     if (this.agents.has(attemptId)) {
       return;
@@ -268,6 +288,12 @@ class AgentManager extends EventEmitter {
     if (filePaths && filePaths.length > 0) {
       const fileRefs = filePaths.map(fp => `@${fp}`).join(' ');
       fullPrompt = `${fileRefs} ${prompt}`;
+    }
+
+    // Add system prompt (BGPID instructions for background servers)
+    const systemPrompt = getSystemPrompt({ prompt, projectPath });
+    if (systemPrompt) {
+      fullPrompt += `\n\n${systemPrompt}`;
     }
 
     // Add output format instructions to user prompt
@@ -347,7 +373,7 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
     const checkpointOptions = checkpointManager.getCheckpointingOptions();
 
     // Start SDK query in background
-    this.runQuery(instance, projectPath, fullPrompt, sessionOptions, checkpointOptions);
+    this.runQuery(instance, projectPath, fullPrompt, sessionOptions, checkpointOptions, maxTurns);
   }
 
   /**
@@ -358,7 +384,8 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
     projectPath: string,
     prompt: string,
     sessionOptions?: { resume?: string; resumeSessionAt?: string },
-    checkpointOptions?: ReturnType<typeof checkpointManager.getCheckpointingOptions>
+    checkpointOptions?: ReturnType<typeof checkpointManager.getCheckpointingOptions>,
+    maxTurns?: number
   ): Promise<void> {
     const { attemptId, controller } = instance;
 
@@ -400,6 +427,7 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
         ...(sessionOptions?.resume ? { resume: sessionOptions.resume } : {}),
         ...(sessionOptions?.resumeSessionAt ? { resumeSessionAt: sessionOptions.resumeSessionAt } : {}),
         ...checkpointOptions,
+        ...(maxTurns ? { maxTurns } : {}),
         abortController: controller,
         // canUseTool callback - pauses streaming when AskUserQuestion is called
         canUseTool: async (toolName: string, input: Record<string, unknown>) => {
@@ -440,12 +468,30 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
             };
           }
 
+          // Intercept Bash commands to fix incomplete BGPID patterns
+          if (toolName === 'Bash') {
+            const command = input.command as string | undefined;
+            if (command && this.isServerCommand(command) && !command.includes('echo "BGPID:$!"')) {
+              // Fix incomplete nohup pattern - add missing 2>&1 & echo "BGPID:$!"
+              let fixedCommand = command;
+              // Pattern: ends with "> /tmp/xxx.log" or "> /tmp/xxx.log " without the full suffix
+              if (/>\s*\/tmp\/[^\s]+\.log\s*$/.test(command)) {
+                fixedCommand = command.trim() + ' 2>&1 & echo "BGPID:$!"';
+                console.log('[AgentManager] Fixed BGPID pattern:', fixedCommand);
+                return { behavior: 'allow' as const, updatedInput: { ...input, command: fixedCommand } };
+              }
+            }
+          }
+
           // Auto-allow all other tools (bypassPermissions mode)
           return { behavior: 'allow' as const, updatedInput: input };
         },
       };
 
       const response = query({ prompt, options: queryOptions });
+
+      // Store query reference for graceful close() on cancel
+      instance.queryRef = response;
 
       // Stream SDK messages with per-message error handling
       // The SDK's internal partial-json-parser can throw on incomplete JSON
@@ -512,18 +558,47 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
                 workflowTracker.trackSubagentEnd(attemptId, block.tool_use_id, success);
 
                 // Detect BGPID pattern in tool result content (from nohup background commands)
-                const content = typeof block.content === 'string' ? block.content : '';
+                // Content can be string or array of {type, text} blocks
+                let content = '';
+                if (typeof block.content === 'string') {
+                  content = block.content;
+                } else if (Array.isArray(block.content)) {
+                  content = (block.content as Array<{ type?: string; text?: string }>)
+                    .filter(c => c && typeof c === 'object' && 'text' in c)
+                    .map(c => c.text || '')
+                    .join('');
+                }
+                console.log(`[AgentManager] Tool result content for BGPID check:`, content.substring(0, 200));
                 const bgpidMatch = content.match(/BGPID:(\d+)/);
+                const emptyBgpidMatch = content.match(/BGPID:\s*$/m) || content.trim() === 'BGPID:';
+
                 if (bgpidMatch && block.tool_use_id) {
+                  // Full BGPID with PID number
                   const pid = parseInt(bgpidMatch[1], 10);
-                  // Look up original command from tracked Bash tool_uses
+                  console.log(`[AgentManager] BGPID detected: ${pid}`);
                   const bashInfo = this.pendingBashCommands.get(block.tool_use_id);
                   const command = bashInfo?.command || `Background process (PID: ${pid})`;
-                  // Try to extract log file path from command
                   const logMatch = command.match(/>\s*([^\s]+\.log)/);
                   const logFile = logMatch ? logMatch[1] : undefined;
+                  console.log(`[AgentManager] Emitting trackedProcess: pid=${pid}, command=${command.substring(0, 50)}`);
                   this.emit('trackedProcess', { attemptId, pid, command, logFile });
-                  // Clean up
+                  this.pendingBashCommands.delete(block.tool_use_id);
+                } else if (emptyBgpidMatch && block.tool_use_id) {
+                  // Empty BGPID - Claude omitted the & so $! is empty
+                  // Extract actual command and spawn via backgroundShell
+                  const bashInfo = this.pendingBashCommands.get(block.tool_use_id);
+                  if (bashInfo?.command && this.isServerCommand(bashInfo.command)) {
+                    // Extract command from nohup pattern: nohup <cmd> > /tmp/xxx.log
+                    const nohupMatch = bashInfo.command.match(/nohup\s+(.+?)\s*>\s*\/tmp\//);
+                    if (nohupMatch) {
+                      const actualCommand = nohupMatch[1].trim();
+                      console.log(`[AgentManager] Empty BGPID detected, spawning shell for: ${actualCommand}`);
+                      this.emit('backgroundShell', {
+                        attemptId,
+                        shell: { toolUseId: block.tool_use_id, command: actualCommand, description: 'Auto-spawned from empty BGPID', originalCommand: bashInfo.command },
+                      });
+                    }
+                  }
                   this.pendingBashCommands.delete(block.tool_use_id);
                 }
               }
@@ -646,6 +721,7 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
 
   /**
    * Cancel a running agent
+   * Uses SDK Query.close() for graceful termination, falls back to AbortController
    */
   cancel(attemptId: string): boolean {
     const instance = this.agents.get(attemptId);
@@ -658,24 +734,44 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
       this.pendingQuestions.delete(attemptId);
     }
 
-    instance.controller.abort();
+    // Graceful close via SDK (cleans up subprocess, MCP transports, pending requests)
+    if (instance.queryRef) {
+      try {
+        instance.queryRef.close();
+      } catch {
+        // Fallback to abort if close() fails
+        instance.controller.abort();
+      }
+    } else {
+      instance.controller.abort();
+    }
+
     this.agents.delete(attemptId);
     return true;
   }
 
   /**
    * Cancel all running agents
+   * Uses SDK Query.close() for graceful termination per agent
    */
   cancelAll(): void {
     // Clean up all pending questions first
-    for (const [attemptId, pending] of this.pendingQuestions) {
+    for (const [, pending] of this.pendingQuestions) {
       pending.resolve(null);
     }
     this.pendingQuestions.clear();
 
-    // Then abort all agents
-    for (const [attemptId, instance] of this.agents) {
-      instance.controller.abort();
+    // Graceful close all agents via SDK
+    for (const [, instance] of this.agents) {
+      if (instance.queryRef) {
+        try {
+          instance.queryRef.close();
+        } catch {
+          instance.controller.abort();
+        }
+      } else {
+        instance.controller.abort();
+      }
     }
     this.agents.clear();
   }

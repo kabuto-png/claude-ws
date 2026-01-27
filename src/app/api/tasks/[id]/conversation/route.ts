@@ -60,6 +60,7 @@ export async function GET(
       const seenToolIds = new Set<string>(); // Dedupe tool_use by id
       const seenTextHashes = new Set<string>(); // Dedupe text by content
       const toolResultMap = new Map<string, ClaudeOutput>();
+      const userAnswerMessages: ClaudeOutput[] = []; // Preserve user_answer type for answer detection
 
       for (const log of logs) {
         if (log.type === 'json') {
@@ -68,12 +69,16 @@ export async function GET(
             if (parsed.type === 'system') continue;
 
             // Handle user_answer logs - these are the user's responses to questions
-            // Display them as assistant messages showing what was answered
+            // Preserve as separate user_answer message so checkForUnansweredQuestion
+            // can detect that a question was already answered
             if ((parsed as any).type === 'user_answer') {
+              // Add as text content block for display
               allContentBlocks.push({
                 type: 'text' as const,
                 text: (parsed as any).displayText || JSON.stringify(parsed)
               });
+              // Preserve as user_answer message for answer detection
+              userAnswerMessages.push(parsed as ClaudeOutput);
               continue;
             }
 
@@ -134,6 +139,7 @@ export async function GET(
       const messages: ClaudeOutput[] = [
         ...toolResultMessages,
         ...(mergedAssistantMessage ? [mergedAssistantMessage] : []),
+        ...userAnswerMessages,
       ];
 
       // Add assistant turn if there are messages

@@ -314,6 +314,15 @@ export function useAttemptStream(
     });
 
     socketInstance.on('question:ask', (data: any) => {
+      console.log('[useAttemptStream] Received question:ask event', data);
+      // Filter by current attemptId to prevent cross-task question leaking
+      if (currentAttemptIdRef.current && data.attemptId !== currentAttemptIdRef.current) {
+        console.log('[useAttemptStream] Ignoring question from different attempt', {
+          receivedAttemptId: data.attemptId,
+          currentAttemptId: currentAttemptIdRef.current,
+        });
+        return;
+      }
       setActiveQuestion({ attemptId: data.attemptId, toolUseId: data.toolUseId, questions: data.questions });
     });
 
@@ -338,10 +347,55 @@ export function useAttemptStream(
   // Helper to scan messages for unanswered AskUserQuestion tools
   const checkForUnansweredQuestion = useCallback((messages: ClaudeOutput[], attemptId: string) => {
     // Build a set of tool_use_ids that have results
+    // Check both top-level tool_result messages (from conversation API)
+    // and tool_result content blocks inside user messages (from running-attempt raw logs)
     const answeredToolIds = new Set<string>();
+    // Also track if any user_answer log exists (saved by answer API as fallback)
+    let hasUserAnswerLog = false;
     for (const msg of messages) {
       if (msg.type === 'tool_result' && msg.tool_data?.tool_use_id) {
         answeredToolIds.add(String(msg.tool_data.tool_use_id));
+      }
+      // Check user messages with tool_result content blocks (raw streaming logs)
+      if (msg.type === 'user' && msg.message?.content) {
+        for (const block of msg.message.content) {
+          if ((block as any).type === 'tool_result' && (block as any).tool_use_id) {
+            answeredToolIds.add(String((block as any).tool_use_id));
+          }
+        }
+      }
+      // Detect user_answer logs (saved by /api/attempts/[id]/answer)
+      // These indicate a question was answered even if tool_result hasn't been logged yet
+      if ((msg as any).type === 'user_answer') {
+        hasUserAnswerLog = true;
+      }
+    }
+    console.log('[checkForUnansweredQuestion] Answered tool IDs', Array.from(answeredToolIds), 'hasUserAnswerLog', hasUserAnswerLog);
+
+    // Collect all AskUserQuestion tool_use_ids from messages (in order)
+    const askQuestionIds: string[] = [];
+    for (const msg of messages) {
+      if (msg.type === 'tool_use' && msg.tool_name === 'AskUserQuestion' && msg.id) {
+        askQuestionIds.push(msg.id);
+      }
+      if (msg.type === 'assistant' && msg.message?.content) {
+        for (const block of msg.message.content) {
+          if ((block as any).type === 'tool_use' &&
+              (block as any).name === 'AskUserQuestion' &&
+              (block as any).id) {
+            askQuestionIds.push(String((block as any).id));
+          }
+        }
+      }
+    }
+
+    // If user_answer log exists but no tool_result matched, mark the last AskUserQuestion as answered
+    // This handles the timing gap where answer was saved but SDK hasn't sent tool_result yet
+    if (hasUserAnswerLog && askQuestionIds.length > 0) {
+      const lastAskId = askQuestionIds[askQuestionIds.length - 1];
+      if (!answeredToolIds.has(lastAskId)) {
+        console.log('[checkForUnansweredQuestion] Marking last AskUserQuestion as answered via user_answer log', lastAskId);
+        answeredToolIds.add(lastAskId);
       }
     }
 

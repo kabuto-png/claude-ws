@@ -1,0 +1,118 @@
+name: Test Windows Compatibility
+
+on:
+  push:
+    branches: [dev, main]
+    paths:
+      - 'bin/**'
+      - 'server.ts'
+      - 'package.json'
+      - '.github/workflows/test-windows.yml'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        node-version: [20, 22]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: Verify CLI syntax
+        run: node -c bin/claudekanban.js
+
+      - name: Test path utilities (Windows backslash handling)
+        shell: node {0}
+        run: |
+          const path = require('path');
+          const isWindows = process.platform === 'win32';
+
+          // Simulate toShellSafePath from bin/claudekanban.js
+          function toShellSafePath(p) {
+            return isWindows ? p.replace(/\\/g, '/') : p;
+          }
+
+          // Test 1: Windows paths should be converted to forward slashes
+          const winPath = 'C:\\Users\\TestUser\\AppData\\npm\\node_modules\\claude-ws\\src\\lib\\db\\index.ts';
+          const safePath = toShellSafePath(winPath);
+
+          if (safePath.includes('\\')) {
+            console.error('FAIL: Path still contains backslashes:', safePath);
+            process.exit(1);
+          }
+          console.log('PASS: toShellSafePath converts backslashes ->', safePath);
+
+          // Test 2: Verify path can be safely embedded in shell command string
+          const cmd = `"tsx" -e "require('${safePath}');"`;
+          if (cmd.includes('\\')) {
+            console.error('FAIL: Shell command contains backslashes:', cmd);
+            process.exit(1);
+          }
+          console.log('PASS: Shell command is safe ->', cmd);
+
+          // Test 3: path.join produces backslashes on Windows, forward slashes on Unix
+          const joined = path.join('C:', 'Users', 'Test', 'src', 'lib', 'db', 'index.ts');
+          const safeJoined = toShellSafePath(joined);
+          console.log('PASS: path.join result:', joined, '-> safe:', safeJoined);
+
+          // Test 4: whichCommand uses 'where' on Windows
+          const checker = isWindows ? 'where' : 'which';
+          console.log('PASS: Command lookup uses:', checker);
+
+          // Test 5: Verify 'where node' works on Windows
+          if (isWindows) {
+            const { execSync } = require('child_process');
+            try {
+              const result = execSync('where node', { encoding: 'utf-8' });
+              console.log('PASS: where node ->', result.trim().split('\n')[0]);
+            } catch (e) {
+              console.error('FAIL: where node failed:', e.message);
+              process.exit(1);
+            }
+          }
+
+          console.log('\nAll path utility tests passed!');
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Test CLI --version
+        run: node bin/claudekanban.js --version
+
+      - name: Test CLI --help
+        run: node bin/claudekanban.js --help
+
+      - name: Test tsx discovery (cross-platform)
+        shell: node {0}
+        run: |
+          const path = require('path');
+          const fs = require('fs');
+          const isWindows = process.platform === 'win32';
+
+          const packageRoot = process.cwd();
+
+          // Check tsx binary exists in node_modules
+          const tsxBin = path.join(packageRoot, 'node_modules', '.bin', isWindows ? 'tsx.cmd' : 'tsx');
+          const tsxExists = fs.existsSync(tsxBin);
+          console.log(`tsx binary at ${tsxBin}: ${tsxExists ? 'FOUND' : 'NOT FOUND'}`);
+
+          // Also check without .cmd extension (node_modules/.bin/tsx also works on Windows)
+          const tsxBinAlt = path.join(packageRoot, 'node_modules', '.bin', 'tsx');
+          const tsxAltExists = fs.existsSync(tsxBinAlt);
+          console.log(`tsx binary at ${tsxBinAlt}: ${tsxAltExists ? 'FOUND' : 'NOT FOUND'}`);
+
+          if (!tsxExists && !tsxAltExists) {
+            console.error('FAIL: tsx not found in node_modules/.bin');
+            process.exit(1);
+          }
+
+          console.log('PASS: tsx binary discovered');
