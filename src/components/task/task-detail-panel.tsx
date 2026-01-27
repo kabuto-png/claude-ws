@@ -207,9 +207,7 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
 
   // Auto-show question prompt when activeQuestion appears
   useEffect(() => {
-    console.log('[TaskDetailPanel] activeQuestion changed:', activeQuestion);
     if (activeQuestion) {
-      console.log('[TaskDetailPanel] Setting showQuestionPrompt to true');
       setShowQuestionPrompt(true);
     }
   }, [activeQuestion]);
@@ -323,7 +321,6 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
           <div className="border-t bg-muted/30">
             {activeQuestion ? (
               <>
-                {console.log('[TaskDetailPanel] Rendering QuestionPrompt with questions:', activeQuestion.questions)}
                 <QuestionPrompt
                   questions={activeQuestion.questions}
                   onAnswer={(answers) => {
@@ -344,7 +341,6 @@ export function TaskDetailPanel({ className }: TaskDetailPanelProps) {
               </>
             ) : (
               <>
-                {console.log('[TaskDetailPanel] Rendering loading state')}
                 {/* Loading state while waiting for question data */}
                 <div className="py-8 px-4 text-center">
                   <div className="inline-flex items-center gap-2 text-muted-foreground text-sm">

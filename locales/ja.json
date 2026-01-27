@@ -184,6 +184,7 @@
     "additions": "追加",
     "deletions": "削除",
     "noChangesToCommit": "コミットする変更なし",
+    "noChanges": "変更なし",
     "enterCommitMessage": "コミットメッセージを入力"
   },
   "settings": {

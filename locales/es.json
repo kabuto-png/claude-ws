@@ -184,6 +184,7 @@
     "additions": "adiciones",
     "deletions": "eliminaciones",
     "noChangesToCommit": "Sin cambios para confirmar",
+    "noChanges": "Sin cambios",
     "enterCommitMessage": "Ingrese mensaje de confirmación"
   },
   "settings": {

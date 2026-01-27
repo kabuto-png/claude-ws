@@ -184,6 +184,7 @@
     "additions": "thêm mới",
     "deletions": "xóa",
     "noChangesToCommit": "Không có thay đổi để gửi",
+    "noChanges": "Không có thay đổi",
     "enterCommitMessage": "Nhập thông điệp gửi"
   },
   "settings": {

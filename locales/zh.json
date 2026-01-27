@@ -184,6 +184,7 @@
     "additions": "新增",
     "deletions": "删除",
     "noChangesToCommit": "没有要提交的更改",
+    "noChanges": "无更改",
     "enterCommitMessage": "输入提交信息"
   },
   "settings": {

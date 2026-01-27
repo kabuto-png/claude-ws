@@ -184,6 +184,7 @@
     "additions": "Hinzufügungen",
     "deletions": "Löschungen",
     "noChangesToCommit": "Keine Änderungen zu committen",
+    "noChanges": "Keine Änderungen",
     "enterCommitMessage": "Commit-Nachricht eingeben"
   },
   "settings": {

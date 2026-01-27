@@ -18,28 +18,25 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     });
 
     socketInstance.on('connect', () => {
-      console.log('[SocketProvider] Connected:', socketInstance.id);
       // Defer setSocket to avoid setState during render
       Promise.resolve().then(() => setSocket(socketInstance));
     });
 
     socketInstance.on('disconnect', () => {
-      console.log('[SocketProvider] Disconnected');
+      // Socket disconnected
     });
 
-    socketInstance.on('connect_error', (err) => {
-      console.error('[SocketProvider] Connect error:', err);
+    socketInstance.on('connect_error', () => {
+      // Socket connect error
     });
 
     // Global: Listen for any task starting
     socketInstance.on('task:started', (data: { taskId: string }) => {
-      console.log('[SocketProvider] Task started:', data.taskId);
       useRunningTasksStore.getState().addRunningTask(data.taskId);
     });
 
     // Global: Listen for any task finishing
     socketInstance.on('task:finished', (data: { taskId: string; status: string }) => {
-      console.log('[SocketProvider] Task finished:', data.taskId, data.status);
       useRunningTasksStore.getState().removeRunningTask(data.taskId);
       if (data.status === 'completed') {
         useRunningTasksStore.getState().markTaskCompleted(data.taskId);
