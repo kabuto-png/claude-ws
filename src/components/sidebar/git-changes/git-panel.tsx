@@ -333,7 +333,7 @@ export function GitPanel() {
     return (
       <div className="flex flex-col items-center justify-center h-full gap-2 p-4">
         <p className="text-sm text-destructive text-center">{error}</p>
-        <Button variant="outline" size="sm" onClick={fetchStatus}>
+        <Button variant="outline" size="sm" onClick={() => fetchStatus(true)}>
           Retry
         </Button>
       </div>
@@ -386,7 +386,7 @@ export function GitPanel() {
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={fetchStatus}
+            onClick={() => fetchStatus(true)}
             disabled={loading}
             title="Refresh"
           >
