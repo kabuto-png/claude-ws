@@ -10,6 +10,8 @@
     "search": "Search",
     "settings": "Settings",
     "logout": "Logout",
+    "logoutConfirmTitle": "Confirm Logout",
+    "logoutConfirmMessage": "Are you sure you want to logout?",
     "login": "Login",
     "submit": "Submit",
     "back": "Back",

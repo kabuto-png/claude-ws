@@ -10,6 +10,8 @@
     "search": "검색",
     "settings": "설정",
     "logout": "로그아웃",
+    "logoutConfirmTitle": "로그아웃 확인",
+    "logoutConfirmMessage": "로그아웃하시겠습니까?",
     "login": "로그인",
     "submit": "제출",
     "back": "뒤로",

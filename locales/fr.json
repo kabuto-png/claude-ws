@@ -10,6 +10,8 @@
     "search": "Rechercher",
     "settings": "Paramètres",
     "logout": "Déconnexion",
+    "logoutConfirmTitle": "Confirmer la déconnexion",
+    "logoutConfirmMessage": "Êtes-vous sûr de vouloir vous déconnecter?",
     "login": "Connexion",
     "submit": "Soumettre",
     "back": "Retour",

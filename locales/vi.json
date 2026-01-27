@@ -10,6 +10,8 @@
     "search": "Tìm kiếm",
     "settings": "Cài đặt",
     "logout": "Đăng xuất",
+    "logoutConfirmTitle": "Xác nhận đăng xuất",
+    "logoutConfirmMessage": "Bạn có chắc chắn muốn đăng xuất?",
     "login": "Đăng nhập",
     "submit": "Gửi",
     "back": "Quay lại",

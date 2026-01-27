@@ -10,6 +10,8 @@
     "search": "Suchen",
     "settings": "Einstellungen",
     "logout": "Abmelden",
+    "logoutConfirmTitle": "Abmeldung bestätigen",
+    "logoutConfirmMessage": "Sind Sie sicher, dass Sie sich abmelden möchten?",
     "login": "Anmelden",
     "submit": "Absenden",
     "back": "Zurück",

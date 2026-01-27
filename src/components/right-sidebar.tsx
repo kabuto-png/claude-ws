@@ -2,19 +2,28 @@
 
 import { useState, useEffect } from 'react';
 import { useTheme } from 'next-themes';
-import { Plus, Settings, Package, X, Sun, Moon } from 'lucide-react';
+import { Plus, Settings, Package, X, Sun, Moon, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useRightSidebarStore } from '@/stores/right-sidebar-store';
 import { useAgentFactoryUIStore } from '@/stores/agent-factory-ui-store';
 import { useSettingsUIStore } from '@/stores/settings-ui-store';
 import { LanguageSwitcher } from '@/components/ui/language-switcher';
+import { clearStoredApiKey } from '@/components/auth/api-key-dialog';
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { useTranslations } from 'next-intl';
 
 interface RightSidebarProps {
@@ -30,6 +39,7 @@ export function RightSidebar({ projectId, onCreateTask, className }: RightSideba
   const { setOpen: setSettingsOpen } = useSettingsUIStore();
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // Prevent hydration mismatch
   useEffect(() => {
@@ -38,6 +48,20 @@ export function RightSidebar({ projectId, onCreateTask, className }: RightSideba
 
   const toggleTheme = () => {
     setTheme(resolvedTheme === 'dark' ? 'light' : 'dark');
+  };
+
+  const handleLogout = () => {
+    clearStoredApiKey();
+    window.location.reload();
+  };
+
+  const handleLogoutClick = () => {
+    setShowLogoutConfirm(true);
+  };
+
+  const handleLogoutConfirm = () => {
+    setShowLogoutConfirm(false);
+    handleLogout();
   };
 
   if (!isOpen) return null;
@@ -136,7 +160,39 @@ export function RightSidebar({ projectId, onCreateTask, className }: RightSideba
         <div className="pl-6">
           <LanguageSwitcher />
         </div>
+
+        {/* Logout button - under language switcher */}
+        <div className="pl-6">
+          <Button
+            variant="outline"
+            onClick={handleLogoutClick}
+            className="w-full justify-start gap-2 text-destructive hover:text-destructive"
+          >
+            <LogOut className="h-4 w-4" />
+            {t('logout')}
+          </Button>
+        </div>
       </div>
+
+      {/* Logout Confirmation Dialog */}
+      <Dialog open={showLogoutConfirm} onOpenChange={setShowLogoutConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('logoutConfirmTitle')}</DialogTitle>
+            <DialogDescription>
+              {t('logoutConfirmMessage')}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLogoutConfirm(false)}>
+              {t('cancel')}
+            </Button>
+            <Button variant="destructive" onClick={handleLogoutConfirm}>
+              {t('logout')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

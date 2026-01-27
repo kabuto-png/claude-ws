@@ -10,6 +10,8 @@
     "search": "検索",
     "settings": "設定",
     "logout": "ログアウト",
+    "logoutConfirmTitle": "ログアウトの確認",
+    "logoutConfirmMessage": "ログアウトしてもよろしいですか？",
     "login": "ログイン",
     "submit": "送信",
     "back": "戻る",
