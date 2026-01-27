@@ -8,11 +8,14 @@
 // Ensure file checkpointing is always enabled
 process.env.CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING = '1';
 
+// Enable SDK task system (opt-in feature since v0.2.19)
+process.env.CLAUDE_CODE_ENABLE_TASKS = 'true';
+
 import { EventEmitter } from 'events';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'path';
 import { homedir } from 'os';
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { query, type Query } from '@anthropic-ai/claude-agent-sdk';
 import type { ClaudeOutput } from '@/types';
 import { adaptSDKMessage, isValidSDKMessage, type BackgroundShellInfo, type SDKResultMessage } from './sdk-event-adapter';
 import { sessionManager } from './session-manager';
@@ -193,6 +196,7 @@ export const DEFAULT_MODEL = 'opus' as const;
 interface AgentInstance {
   attemptId: string;
   controller: AbortController;
+  queryRef?: Query;  // SDK query reference for graceful close()
   startedAt: number;
   sessionId?: string;
 }
@@ -230,6 +234,7 @@ export interface AgentStartOptions {
   filePaths?: string[];
   outputFormat?: string;  // File extension: json, html, md, csv, tsv, txt, xml, etc.
   outputSchema?: string;
+  maxTurns?: number;  // Max conversation turns before stopping (undefined = unlimited)
 }
 
 /**
@@ -266,7 +271,7 @@ class AgentManager extends EventEmitter {
    * Start a new Claude Agent SDK query
    */
   async start(options: AgentStartOptions): Promise<void> {
-    const { attemptId, projectPath, prompt, sessionOptions, filePaths, outputFormat, outputSchema } = options;
+    const { attemptId, projectPath, prompt, sessionOptions, filePaths, outputFormat, outputSchema, maxTurns } = options;
 
     if (this.agents.has(attemptId)) {
       return;
@@ -368,7 +373,7 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
     const checkpointOptions = checkpointManager.getCheckpointingOptions();
 
     // Start SDK query in background
-    this.runQuery(instance, projectPath, fullPrompt, sessionOptions, checkpointOptions);
+    this.runQuery(instance, projectPath, fullPrompt, sessionOptions, checkpointOptions, maxTurns);
   }
 
   /**
@@ -379,7 +384,8 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
     projectPath: string,
     prompt: string,
     sessionOptions?: { resume?: string; resumeSessionAt?: string },
-    checkpointOptions?: ReturnType<typeof checkpointManager.getCheckpointingOptions>
+    checkpointOptions?: ReturnType<typeof checkpointManager.getCheckpointingOptions>,
+    maxTurns?: number
   ): Promise<void> {
     const { attemptId, controller } = instance;
 
@@ -421,6 +427,7 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
         ...(sessionOptions?.resume ? { resume: sessionOptions.resume } : {}),
         ...(sessionOptions?.resumeSessionAt ? { resumeSessionAt: sessionOptions.resumeSessionAt } : {}),
         ...checkpointOptions,
+        ...(maxTurns ? { maxTurns } : {}),
         abortController: controller,
         // canUseTool callback - pauses streaming when AskUserQuestion is called
         canUseTool: async (toolName: string, input: Record<string, unknown>) => {
@@ -482,6 +489,9 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
       };
 
       const response = query({ prompt, options: queryOptions });
+
+      // Store query reference for graceful close() on cancel
+      instance.queryRef = response;
 
       // Stream SDK messages with per-message error handling
       // The SDK's internal partial-json-parser can throw on incomplete JSON
@@ -711,6 +721,7 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
 
   /**
    * Cancel a running agent
+   * Uses SDK Query.close() for graceful termination, falls back to AbortController
    */
   cancel(attemptId: string): boolean {
     const instance = this.agents.get(attemptId);
@@ -723,24 +734,44 @@ Your task is INCOMPLETE until:\n1. File exists with valid content\n2. You have R
       this.pendingQuestions.delete(attemptId);
     }
 
-    instance.controller.abort();
+    // Graceful close via SDK (cleans up subprocess, MCP transports, pending requests)
+    if (instance.queryRef) {
+      try {
+        instance.queryRef.close();
+      } catch {
+        // Fallback to abort if close() fails
+        instance.controller.abort();
+      }
+    } else {
+      instance.controller.abort();
+    }
+
     this.agents.delete(attemptId);
     return true;
   }
 
   /**
    * Cancel all running agents
+   * Uses SDK Query.close() for graceful termination per agent
    */
   cancelAll(): void {
     // Clean up all pending questions first
-    for (const [attemptId, pending] of this.pendingQuestions) {
+    for (const [, pending] of this.pendingQuestions) {
       pending.resolve(null);
     }
     this.pendingQuestions.clear();
 
-    // Then abort all agents
-    for (const [attemptId, instance] of this.agents) {
-      instance.controller.abort();
+    // Graceful close all agents via SDK
+    for (const [, instance] of this.agents) {
+      if (instance.queryRef) {
+        try {
+          instance.queryRef.close();
+        } catch {
+          instance.controller.abort();
+        }
+      } else {
+        instance.controller.abort();
+      }
     }
     this.agents.clear();
   }

@@ -6,7 +6,7 @@
  */
 
 import { EventEmitter } from 'events';
-import { query } from '@anthropic-ai/claude-agent-sdk';
+import { query, type Query } from '@anthropic-ai/claude-agent-sdk';
 import { generateLineDiff, type DiffResult } from './diff-generator';
 
 /**
@@ -21,6 +21,7 @@ export interface InlineEditRequest {
   instruction: string;
   beforeContext?: string; // Lines before selection for context
   afterContext?: string; // Lines after selection for context
+  maxTurns?: number;  // Max conversation turns (undefined = unlimited)
 }
 
 /**
@@ -29,6 +30,7 @@ export interface InlineEditRequest {
 interface EditSession {
   sessionId: string;
   controller: AbortController;
+  queryRef?: Query;  // SDK query reference for graceful close()
   buffer: string;
   startedAt: number;
 }
@@ -59,7 +61,7 @@ class InlineEditManager extends EventEmitter {
    * Start an inline edit session
    */
   async startEdit(request: InlineEditRequest): Promise<void> {
-    const { sessionId, basePath, filePath, language, selectedCode, instruction, beforeContext, afterContext } =
+    const { sessionId, basePath, filePath, language, selectedCode, instruction, beforeContext, afterContext, maxTurns } =
       request;
 
     // Cancel existing session if any
@@ -90,9 +92,13 @@ class InlineEditManager extends EventEmitter {
           cwd: basePath,
           model: 'sonnet', // Use Sonnet for faster responses on inline edits
           permissionMode: 'bypassPermissions' as const,
+          ...(maxTurns ? { maxTurns } : {}),
           abortController: controller,
         },
       });
+
+      // Store query reference for graceful close() on cancel
+      session.queryRef = response;
 
       for await (const message of response) {
         if (controller.signal.aborted) {
@@ -152,13 +158,22 @@ class InlineEditManager extends EventEmitter {
 
   /**
    * Cancel an edit session
+   * Uses SDK Query.close() for graceful termination, falls back to AbortController
    */
   cancelEdit(sessionId: string): boolean {
     const session = this.sessions.get(sessionId);
     if (!session) return false;
 
     console.log(`[InlineEditManager] Cancelling session ${sessionId}`);
-    session.controller.abort();
+    if (session.queryRef) {
+      try {
+        session.queryRef.close();
+      } catch {
+        session.controller.abort();
+      }
+    } else {
+      session.controller.abort();
+    }
     this.sessions.delete(sessionId);
     return true;
   }
@@ -248,7 +263,11 @@ Output the modified code now:`;
     for (const [sessionId, session] of this.sessions) {
       if (now - session.startedAt > this.sessionTimeout) {
         console.log(`[InlineEditManager] Cleaning up stale session ${sessionId}`);
-        session.controller.abort();
+        if (session.queryRef) {
+          try { session.queryRef.close(); } catch { session.controller.abort(); }
+        } else {
+          session.controller.abort();
+        }
         this.sessions.delete(sessionId);
       }
     }

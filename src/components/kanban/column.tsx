@@ -43,7 +43,7 @@ export function Column({ status, title, tasks, attemptCounts = new Map(), onCrea
   };
 
   return (
-    <div className="flex flex-col h-full min-w-[280px] max-w-[320px]">
+    <div className="flex flex-col h-full w-[280px] shrink-0">
       <div className="flex items-center justify-between px-3 py-2 mb-3">
         <h2 className="font-semibold text-sm text-foreground/80">
           {title}
