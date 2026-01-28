@@ -1,5 +1,18 @@
 import { getRequestConfig } from 'next-intl/server';
-import { locales } from './config';
+import { locales, type Locale } from './config';
+
+// Static imports for Turbopack compatibility (dynamic template literal imports not supported)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const messageImports: Record<Locale, () => Promise<{ default: Record<string, any> }>> = {
+  de: () => import('@/locales/de.json'),
+  en: () => import('@/locales/en.json'),
+  es: () => import('@/locales/es.json'),
+  fr: () => import('@/locales/fr.json'),
+  ja: () => import('@/locales/ja.json'),
+  ko: () => import('@/locales/ko.json'),
+  vi: () => import('@/locales/vi.json'),
+  zh: () => import('@/locales/zh.json'),
+};
 
 export default getRequestConfig(async ({ requestLocale }) => {
   let locale = await requestLocale;
@@ -10,6 +23,6 @@ export default getRequestConfig(async ({ requestLocale }) => {
 
   return {
     locale,
-    messages: (await import(`@/locales/${locale}.json`)).default,
+    messages: (await messageImports[locale as Locale]()).default,
   };
 });
