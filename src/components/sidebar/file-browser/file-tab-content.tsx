@@ -82,7 +82,7 @@ export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
   const canRedo = future.length > 0;
   const isDirty = originalContent !== editedContent;
 
-  // File sync state - polls every 10 seconds for external changes
+  // File sync state - polls every 5 seconds for external changes
   const [showDiffResolver, setShowDiffResolver] = useState(false);
 
   const fileSync = useFileSync({
@@ -90,7 +90,7 @@ export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
     basePath: activeProject?.path ?? null,
     currentContent: editedContent,
     originalContent,
-    pollInterval: 10000,  // 10 seconds
+    pollInterval: 5000,  // 5 seconds
     enabled: !loading && !!content && !content.isBinary,
     // Show diff resolver modal when remote changes detected AND local has unsaved changes
     onRemoteChange: useCallback(() => {
@@ -758,6 +758,7 @@ export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
                 content={editedContent}
                 className="h-full"
                 currentFilePath={filePath}
+                basePath={activeProject?.path ?? null}
                 onLocalFileClick={async (resolvedPath) => {
                   const store = useSidebarStore.getState();
 

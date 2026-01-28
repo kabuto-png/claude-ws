@@ -1,17 +1,20 @@
 'use client';
 
-import { memo, useMemo } from 'react';
+import { memo, useMemo, useState, useEffect, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import { CodeBlock } from '@/components/claude/code-block';
 import { ExternalLink, FileText, Folder } from 'lucide-react';
+import { useFileSync } from '@/hooks/use-file-sync';
 
 interface MarkdownFileViewerProps {
   content: string;
   className?: string;
   /** Current file path (used to resolve relative links) */
   currentFilePath?: string;
+  /** Base project path (for file sync) */
+  basePath?: string | null;
   /** Callback when a local file link is clicked */
   onLocalFileClick?: (resolvedPath: string) => void;
 }
@@ -214,8 +217,34 @@ export const MarkdownFileViewer = memo(function MarkdownFileViewer({
   content,
   className,
   currentFilePath,
+  basePath,
   onLocalFileClick
 }: MarkdownFileViewerProps) {
+  // Internal state for content (allows silent updates)
+  const [internalContent, setInternalContent] = useState(content);
+
+  // Update internal content when prop changes (file switched)
+  useEffect(() => {
+    setInternalContent(content);
+  }, [content]);
+
+  // Silent update callback when file changes on disk
+  const handleSilentUpdate = useCallback((remoteContent: string) => {
+    setInternalContent(remoteContent);
+  }, []);
+
+  // File sync hook for polling remote changes
+  useFileSync({
+    filePath: currentFilePath ?? null,
+    basePath: basePath ?? null,
+    currentContent: internalContent,
+    originalContent: content,
+    pollInterval: 5000,
+    enabled: !!currentFilePath && !!basePath,
+    onSilentUpdate: handleSilentUpdate,
+    // No onRemoteChange callback - markdown viewer is read-only
+  });
+
   // Memoize markdown components to avoid recreating on every render
   const markdownComponents = useMemo(
     () => createMarkdownComponents(currentFilePath, onLocalFileClick),
@@ -226,7 +255,7 @@ export const MarkdownFileViewer = memo(function MarkdownFileViewer({
     <div className={cn('h-full overflow-auto', className)}>
       <div className="max-w-4xl mx-auto px-6 py-8 prose-sm">
         <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-          {content}
+          {internalContent}
         </ReactMarkdown>
       </div>
     </div>
