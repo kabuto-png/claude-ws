@@ -14,6 +14,7 @@ import { EditorView } from '@codemirror/view';
 import { useTheme } from 'next-themes';
 import { languages } from './languages';
 import { gotoDefinitionExtension, type ExtractedSymbol, type DefinitionInfo } from './extensions/goto-definition';
+import { markerLineHighlightExtension } from './extensions/marker-line-highlight';
 import {
   inlineEditExtension,
   dispatchInlineDiff,
@@ -397,6 +398,8 @@ export function CodeEditorWithInlineEdit({
         '.cm-lineNumbers .cm-gutterElement': { backgroundColor: 'rgb(255 255 255 / 3%) !important' },
       }),
       ...(isDarkTheme ? [oneDark] : []),
+      // Highlight marker lines (>>>>> and <<<<<)
+      ...markerLineHighlightExtension,
       ...(langExtension ? [langExtension()] : []),
     ];
 

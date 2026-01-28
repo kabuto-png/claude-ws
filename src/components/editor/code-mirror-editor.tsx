@@ -6,6 +6,7 @@ import { oneDark } from '@codemirror/theme-one-dark';
 import { EditorView } from '@codemirror/view';
 import { useTheme } from 'next-themes';
 import { languages } from './languages';
+import { markerLineHighlightExtension } from './extensions/marker-line-highlight';
 
 interface EditorPosition {
   lineNumber?: number;
@@ -113,6 +114,8 @@ export function CodeMirrorEditor({
       }),
       // Apply oneDark theme for dark themes
       ...(isDarkTheme ? [oneDark] : []),
+      // Highlight marker lines (>>>>> and <<<<<)
+      ...markerLineHighlightExtension,
       ...(langExtension ? [langExtension()] : []),
     ];
   }, [language, isDarkTheme]);

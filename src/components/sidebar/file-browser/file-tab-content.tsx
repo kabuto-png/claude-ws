@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Loader2, AlertCircle, File, Copy, Check, Save, Undo, Redo, Search, X, AtSign, MoreVertical, Download, Eye, Code } from 'lucide-react';
+import { Loader2, AlertCircle, File, Copy, Check, Save, Undo, Redo, Search, X, AtSign, MoreVertical, Download, Eye, Code, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu';
 import { CodeEditorWithInlineEdit } from '@/components/editor/code-editor-with-inline-edit';
 import { MarkdownFileViewer } from '@/components/editor/markdown-file-viewer';
+import { FileDiffResolverModal } from '@/components/editor/file-diff-resolver-modal';
 import { useSidebarStore } from '@/stores/sidebar-store';
 import { useActiveProject } from '@/hooks/use-active-project';
 import { useTaskStore } from '@/stores/task-store';
 import { useContextMentionStore } from '@/stores/context-mention-store';
 import { useProjectStore } from '@/stores/project-store';
+import { useFileSync } from '@/hooks/use-file-sync';
 import { waitForElement } from '@/lib/utils';
 
 interface FileContent {
@@ -79,6 +81,54 @@ export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
   const canUndo = past.length > 0;
   const canRedo = future.length > 0;
   const isDirty = originalContent !== editedContent;
+
+  // File sync state - polls every 10 seconds for external changes
+  const [showDiffResolver, setShowDiffResolver] = useState(false);
+
+  const fileSync = useFileSync({
+    filePath: !loading && content && !content.isBinary ? filePath : null,
+    basePath: activeProject?.path ?? null,
+    currentContent: editedContent,
+    originalContent,
+    pollInterval: 10000,  // 10 seconds
+    enabled: !loading && !!content && !content.isBinary,
+    // Show diff resolver modal when remote changes detected AND local has unsaved changes
+    onRemoteChange: useCallback(() => {
+      setShowDiffResolver(true);
+    }, []),
+    // Silently update editor when remote changes detected AND no local changes
+    onSilentUpdate: useCallback((remoteContent: string) => {
+      setEditedContent(remoteContent);
+      setOriginalContent(remoteContent);
+      setPast([]);
+      setFuture([]);
+    }, []),
+  });
+
+  // Handle accepting remote content from diff resolver
+  const handleAcceptRemote = useCallback(() => {
+    if (fileSync.remoteContent !== null) {
+      setEditedContent(fileSync.remoteContent);
+      setOriginalContent(fileSync.remoteContent);
+      setPast([]);
+      setFuture([]);
+      fileSync.acceptRemote();
+    }
+  }, [fileSync]);
+
+  // Handle keeping local content from diff resolver
+  const handleKeepLocal = useCallback(() => {
+    fileSync.keepLocal();
+  }, [fileSync]);
+
+  // Handle merged content from diff resolver
+  const handleMerge = useCallback((mergedContent: string) => {
+    setEditedContent(mergedContent);
+    // Don't update originalContent - user still needs to save
+    setPast(prev => [...prev, editedContent]);
+    setFuture([]);
+    fileSync.clearConflict();
+  }, [editedContent, fileSync]);
 
   // Notify store of dirty state changes
   useEffect(() => {
@@ -590,6 +640,24 @@ export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
           )}
         </div>
         <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
+          {/* Sync indicator */}
+          {fileSync.isPolling && (
+            <span title="Checking for changes...">
+              <RefreshCw className="size-3 animate-spin text-muted-foreground" />
+            </span>
+          )}
+          {fileSync.hasConflict && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDiffResolver(true)}
+              className="text-xs gap-1 text-amber-600 dark:text-amber-400 hover:text-amber-600 dark:hover:text-amber-400"
+              title="External changes detected - click to resolve"
+            >
+              <AlertCircle className="size-3" />
+              <span className="hidden sm:inline">Conflict</span>
+            </Button>
+          )}
           <span className="text-sm font-medium truncate">{fileName}</span>
           {isDirty && (
             <span className="text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded hidden sm:inline-block">
@@ -773,6 +841,20 @@ export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
           </>
         )}
       </div>
+
+      {/* File Diff Resolver Modal */}
+      {showDiffResolver && fileSync.remoteContent !== null && (
+        <FileDiffResolverModal
+          open={showDiffResolver}
+          onClose={() => setShowDiffResolver(false)}
+          filePath={filePath}
+          localContent={editedContent}
+          remoteContent={fileSync.remoteContent}
+          onAcceptRemote={handleAcceptRemote}
+          onKeepLocal={handleKeepLocal}
+          onMerge={handleMerge}
+        />
+      )}
     </div>
   );
 }
