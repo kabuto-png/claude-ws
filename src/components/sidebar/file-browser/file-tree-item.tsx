@@ -177,6 +177,7 @@ export function FileTreeItem({
   return (
     <DropdownMenu open={contextMenuOpen} onOpenChange={setContextMenuOpen}>
       <div
+        data-path={entry.path}
         className={cn(
           'flex items-center gap-1 py-1 px-2 cursor-pointer rounded-sm text-sm relative group',
           // Hover: only apply when not selected

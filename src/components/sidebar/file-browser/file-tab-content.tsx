@@ -11,6 +11,7 @@ import { useActiveProject } from '@/hooks/use-active-project';
 import { useTaskStore } from '@/stores/task-store';
 import { useContextMentionStore } from '@/stores/context-mention-store';
 import { useProjectStore } from '@/stores/project-store';
+import { waitForElement } from '@/lib/utils';
 
 interface FileContent {
   content: string | null;
@@ -285,7 +286,7 @@ export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
     if (matchPositions[nextMatch - 1]) {
       setEditorPosition(matchPositions[nextMatch - 1]);
     }
-    setTimeout(() => searchInputRef.current?.focus(), 0);
+    requestAnimationFrame(() => searchInputRef.current?.focus());
   }, [searchQuery, totalMatches, currentMatch, matchPositions]);
 
   const handlePrevMatch = useCallback(() => {
@@ -295,7 +296,7 @@ export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
     if (matchPositions[prevMatch - 1]) {
       setEditorPosition(matchPositions[prevMatch - 1]);
     }
-    setTimeout(() => searchInputRef.current?.focus(), 0);
+    requestAnimationFrame(() => searchInputRef.current?.focus());
   }, [searchQuery, totalMatches, currentMatch, matchPositions]);
 
   const closeSearch = useCallback(() => {
@@ -685,7 +686,75 @@ export function FileTabContent({ tabId, filePath }: FileTabContentProps) {
                 <span className="text-xs mt-1">{formatFileSize(content.size)}</span>
               </div>
             ) : isMarkdownFile && viewMode === 'preview' ? (
-              <MarkdownFileViewer content={editedContent} className="h-full" />
+              <MarkdownFileViewer
+                content={editedContent}
+                className="h-full"
+                currentFilePath={filePath}
+                onLocalFileClick={async (resolvedPath) => {
+                  const store = useSidebarStore.getState();
+
+                  /**
+                   * Helper to navigate file explorer to a folder path
+                   * Opens sidebar, switches to files tab, expands folders, sets selection
+                   */
+                  const navigateToFolder = async (folderPath: string) => {
+                    // 1. Open sidebar if not open
+                    if (!store.isOpen) {
+                      store.setIsOpen(true);
+                    }
+
+                    // 2. Switch to files tab
+                    store.setActiveTab('files');
+
+                    // 3. Expand all parent folders and target folder
+                    const pathParts = folderPath.replace(/\/$/, '').split('/').filter(Boolean);
+                    let currentPath = '';
+                    for (const part of pathParts) {
+                      currentPath = currentPath ? `${currentPath}/${part}` : part;
+                      store.expandFolder(currentPath);
+                    }
+
+                    // 4. Set selected file to highlight and trigger scroll
+                    store.setSelectedFile(folderPath.replace(/\/$/, ''));
+
+                    // 5. Wait for element to appear in DOM, then scroll into view
+                    const element = await waitForElement(`[data-path="${folderPath.replace(/\/$/, '')}"]`);
+                    element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  };
+
+                  // Check if path looks like a folder (ends with / or no extension)
+                  const hasExtension = resolvedPath.includes('.') && !resolvedPath.endsWith('/');
+                  const looksLikeFolder = resolvedPath.endsWith('/') || !hasExtension;
+
+                  if (looksLikeFolder) {
+                    navigateToFolder(resolvedPath);
+                  } else {
+                    // Try to open as a file
+                    try {
+                      const res = await fetch(
+                        `/api/files/content?basePath=${encodeURIComponent(activeProject?.path || '')}&path=${encodeURIComponent(resolvedPath)}`
+                      );
+
+                      if (res.ok) {
+                        // It's a valid file - open it in a new tab
+                        store.openTab(resolvedPath);
+                      } else {
+                        const data = await res.json();
+                        if (data.error === 'Path is not a file' || res.status === 400) {
+                          // It's a directory - navigate to it
+                          navigateToFolder(resolvedPath);
+                        } else {
+                          // Other error - try to open anyway
+                          store.openTab(resolvedPath);
+                        }
+                      }
+                    } catch {
+                      // On error, just try to open the tab
+                      store.openTab(resolvedPath);
+                    }
+                  }
+                }}
+              />
             ) : (
               <CodeEditorWithInlineEdit
                 value={editedContent}
