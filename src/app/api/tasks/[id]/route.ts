@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, schema } from '@/lib/db';
 import { eq } from 'drizzle-orm';
+import { rm } from 'fs/promises';
+import { join } from 'path';
+import { UPLOADS_DIR } from '@/lib/file-utils';
 import type { TaskStatus } from '@/types';
 
 // GET /api/tasks/[id] - Get a single task
@@ -106,13 +109,29 @@ export async function PATCH(
   return PUT(request, { params });
 }
 
-// DELETE /api/tasks/[id] - Delete a task
+// DELETE /api/tasks/[id] - Delete a task and its uploaded files
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params;
+
+    // Query attempt IDs to clean up upload directories before DB cascade
+    const attempts = await db
+      .select({ id: schema.attempts.id })
+      .from(schema.attempts)
+      .where(eq(schema.attempts.taskId, id));
+
+    // Delete physical upload files for each attempt
+    for (const attempt of attempts) {
+      const attemptDir = join(UPLOADS_DIR, attempt.id);
+      try {
+        await rm(attemptDir, { recursive: true, force: true });
+      } catch {
+        // Directory may not exist if no files were uploaded
+      }
+    }
 
     const result = await db
       .delete(schema.tasks)
